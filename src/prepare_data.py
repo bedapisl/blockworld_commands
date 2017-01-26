@@ -1,43 +1,87 @@
 from database import Database
 import pdb
 import re
+import hunspell
 from scipy.spatial import distance
 
 from setting import digits, logos
 from utils import levenshtein_distance
 
 
-def tokenize(command):
-    command = command.lower() + " "
-    command = command.replace(",", " , ").replace("'s", "").replace("’s", "").replace("\"", "").replace("(", "").replace(")", "").replace(";", " ").replace(". ", " . ").replace("'", "")
-    command = re.sub("(\D)-(\D)", "\g<1> \g<2>", command)       #substitutes - for space if there are not numbers before and after -
+class Tokenizer():
+    def __init__(self, spell_check):
+        self.spell_check = spell_check
+        self.changes = {}
+        if self.spell_check:
+            self.checker = hunspell.HunSpell('/usr/share/hunspell/en_US.dic', '/usr/share/hunspell/en_US.aff')
+            self.checker.add('artois')
+            self.checker.add(',')
+            self.checker.add('starbucks')
+            self.checker.add('esso')
+            self.checker.add('nvidia')
+            self.checker.add('sri')
+            self.checker.add('bmw')
+            self.checker.add('heineken')
+            self.checker.add('mercedes')
 
-    tokens = command.split()
-    return tokens
+    
+    def correct(self, token):
+        try:
+            if not self.checker.spell(token):
+                suggestions = self.checker.suggest(token)
+                if len(suggestions) > 0:
+                    self.changes[token] = suggestions[0].decode()
+                    return suggestions[0].decode().lower()
+        
+        except UnicodeEncodeError:  
+            pass
+
+        return token
 
 
-def create_vocabulary():
+    def tokenize(self, command):
+        command = command.lower() + " "
+        command = command.replace(",", " , ").replace("'s", "").replace("’s", "").replace("\"", "").replace("(", "").replace(")", "").replace(";", " ").replace(". ", " . ").replace("'", "")
+        command = re.sub("(\D)-(\D)", "\g<1> \g<2>", command)       #substitutes - for space if there are not numbers before and after -
+        command = re.sub("([a-zA-Z])([0-9])", "\g<1> \g<2>", command)
+        command = re.sub("([0-9])([a-zA-Z])", "\g<1> \g<2>", command)
+
+        tokens = command.split()
+        
+        if self.spell_check:
+            corrected_tokens = []
+            for token in tokens:
+                corrected_tokens.append(self.correct(token))
+            
+            tokens = corrected_tokens
+
+        return tokens
+
+
+def create_vocabulary(version, tokenizer):
     db = Database()
     
     training_commands = db.get_all_rows_single_element("SELECT Command FROM Command JOIN Configuration ON Command.ConfigurationID = Configuration.ConfigurationID WHERE Configuration.Dataset = 'train'")
 
     tokens = {}
     for command in training_commands:
-        for token in tokenize(command):
+        for token in tokenizer.tokenize(command):
             if token in tokens:
                 tokens[token] += 1
             else:
                 tokens[token] = 1
 
+    #print(tokenizer.changes)
+
     vocabulary_rows = []
-    vocabulary_rows.append([0, "<bos>", len(training_commands)])
-    vocabulary_rows.append([1, "<eos>", len(training_commands)])
-    vocabulary_rows.append([2, "<unk>", len([token for (token, count) in tokens.items() if count == 1])])
+    vocabulary_rows.append([0, "<bos>", len(training_commands), version])
+    vocabulary_rows.append([1, "<eos>", len(training_commands), version])
+    vocabulary_rows.append([2, "<unk>", len([token for (token, count) in tokens.items() if count == 1]), version])
 
     token_index = 3
     for token, count in tokens.items():
         if count > 1:
-            vocabulary_rows.append([token_index, token, count])
+            vocabulary_rows.append([token_index, token, count, version])
             token_index += 1
 
     db.insert_many("Vocabulary", vocabulary_rows)
@@ -94,8 +138,8 @@ def get_possible_reference(word, decoration):
 
 
 # returns nearest block which could have been referenced in command
-def get_reference(command, decoration, location, source, world_after):
-    possible_references = set(map(lambda token : get_possible_reference(token, decoration), tokenize(command)))
+def get_reference(command, decoration, location, source, world_after, tokenizer):
+    possible_references = set(map(lambda token : get_possible_reference(token, decoration), tokenizer.tokenize(command)))
 
     min_distance = 10000000
     best_reference = -1
@@ -113,11 +157,11 @@ def get_direction(source, reference, world_after):
     return [s_i - r_i for s_i, r_i in zip(world_after[source], world_after[reference])]
 
 
-def encode_command(command, vocabulary):
+def encode_command(command, vocabulary, tokenizer):
     encoded = []
     encoded.append(vocabulary["<bos>"])
 
-    for word in tokenize(command):
+    for word in tokenizer.tokenize(command):
         if word in vocabulary:
             encoded.append(vocabulary[word])
         else:
@@ -127,12 +171,12 @@ def encode_command(command, vocabulary):
     return encoded
     
 
-def create_training_data():
+def create_training_data(version, tokenizer):
     db = Database()
     all_commands = db.get_all_rows("SELECT Com.CommandID, Conf.Dataset, Conf.Decoration, Com.Command, Com.ConfigurationID, Com.Start, Com.Finish FROM Command AS Com JOIN Configuration AS Conf ON Com.ConfigurationID = Conf.ConfigurationID ORDER BY Com.CommandID")
     
     vocabulary = {}
-    for (token_id, token) in db.get_all_rows("SELECT TokenID, Token FROM Vocabulary"):
+    for (token_id, token) in db.get_all_rows("SELECT TokenID, Token FROM Vocabulary WHERE Version = " + str(version)):
         vocabulary[token] = token_id
 
     data = []
@@ -140,17 +184,25 @@ def create_training_data():
         (world_before, world_after) = get_world(configuration_id, start, finish, db)
         source = get_changed_block(world_before, world_after)
         location = world_after[source]
-        reference = get_reference(command, decoration, location, source, world_after)
+        reference = get_reference(command, decoration, location, source, world_after, tokenizer)
         direction = get_direction(source, reference, world_after)
-        encoded_command = encode_command(command, vocabulary)
+        encoded_command = encode_command(command, vocabulary, tokenizer)
 
-        data.append([command_id, dataset, str(encoded_command), str(world_before), source, str(location), reference, str(direction), command])
+        data.append([command_id, dataset, version, str(encoded_command), str(world_before), source, str(location), reference, str(direction), command])
 
     db.insert_many("ModelInput", data)
 
 
+def main():
+    tokenizer = Tokenizer(spell_check = False)
+    create_vocabulary(version = 0, tokenizer = tokenizer)
+    create_training_data(version = 0, tokenizer = tokenizer)
 
-create_vocabulary()
-create_training_data()
+    tokenizer = Tokenizer(spell_check = True)
+    create_vocabulary(version = 1, tokenizer = tokenizer)
+    create_training_data(version = 1, tokenizer = tokenizer)
+
+
+main()
 
 

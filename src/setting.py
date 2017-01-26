@@ -8,3 +8,5 @@ directions = ["left", "above", "right", "under"]
 compass_directions = ["west", "north", "east", "south"]
 
 max_command_len = 100
+
+spell_check = True

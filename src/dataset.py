@@ -8,14 +8,15 @@ from setting import max_command_len
 
 
 class Dataset:
-    def __init__(self, dataset, shuffle = True, dimension = 2, seed = 42):
+    def __init__(self, dataset, version, shuffle = True, dimension = 2, seed = 42):
         random.seed(seed)
+        self.version = version
         self.instance_id = 0
         self.dataset_name = dataset
 
         db = Database()
 
-        data = db.get_all_rows("SELECT Command, WorldBefore, Source, Location FROM ModelInput WHERE Dataset = '" + str(dataset) + "' ORDER BY CommandID")
+        data = db.get_all_rows("SELECT Command, WorldBefore, Source, Location FROM ModelInput WHERE Dataset = '" + str(dataset) + "' AND Version = " + str(version) + " ORDER BY CommandID")
 
         if shuffle:
             random.shuffle(data)       
@@ -112,7 +113,7 @@ class Dataset:
 
     def vocabulary_length(self):
         db = Database()
-        length = db.get_all_rows_single_element("SELECT Max(TokenID) FROM Vocabulary")[0]
+        length = db.get_all_rows_single_element("SELECT Max(TokenID) FROM Vocabulary WHERE Version = " + str(self.version))[0]
 
         return length
     

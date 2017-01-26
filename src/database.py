@@ -86,6 +86,7 @@ class Database:
             return
         
         command = "REPLACE INTO " + table + " VALUES (" + ", ".join(len(values[0]) * [self.substitution_string]) + ")"
+
         self.execute_many(command, values)
 
 

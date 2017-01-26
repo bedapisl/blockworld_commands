@@ -27,6 +27,8 @@ def evaluate(model, dataset, epoch, dimension = 2):
         for i in range(0, len(commands)):
             if sources[i] == predicted_sources[i]:
                 source_correct += 1
+            #else:
+                #pdb.set_trace()
         
         source_accuracy = source_correct / float(len(commands))
 
@@ -73,30 +75,64 @@ def save(run_id, args, dev_result, test_result, start_time):
 
     seconds = (time.time() - start_time) * args.threads
     computation_time = str(int(seconds / 3600)) + ":" + str(int(seconds / 60) % 60)
-    target = args.target
-    model = args.model
-    learning_rate = args.alpha
-    hidden_dimension = args.hidden_dimension
-    arguments = vars(args)
-    del arguments["target"]
-    del arguments["model"]
-    del arguments["alpha"]
-    del arguments["stop"]
-    del arguments["max_epochs"]
-    del arguments["test"]
-    del arguments["threads"]
-    del arguments["hidden_dimension"]
-    del arguments["restore_and_test"]
 
+    db_cols = ["run_id", "target", "model", "version", "dev_result", "test_result", "epoch", "hidden_dimension", "alpha", "rnn_cell_dim", "rnn_cell_type", "bidirectional", "dropout_input", "dropout_output", "batch_size", "use_world", "computation_time", "args"]
+    
+    args_to_delete = ["max_epochs", "test", "restore_and_test"]
     if model == "ffn":
-        del arguments["rnn_cell_type"]
-        del arguments["rnn_cell_dim"]
-        del arguments["bidirectional"]
+        args_to_delete += ["rnn_cell_type", "rnn_cell_dim", "bidirectional"]
+    
+    args = vars(args)
+    for to_delete in args_to_delete:
+        if to_delete in args.keys():
+            del args[to_delete]
 
-    row = [run_id, target, model, dev_result, test_result, epoch, hidden_dimension, learning_rate, computation_time, str(arguments)]
+    row = []
+    
+    for col in db_cols:
+        if col in args.keys():
+            row.append(args[col])
+            del args[col]
+        elif col in ["run_id", "dev_result", "test_result", "computation_time", "args"]:
+            row.append(eval(col))
+        else:
+            row.append(None)
 
     db.insert("Results", row)
-
+#
+#    target = args.target
+#    model = args.model
+#    version = args.version
+#    learning_rate = args.alpha
+#    hidden_dimension = args.hidden_dimension
+#    rnn_cell_dim = args.rnn_cell_dim
+#    rnn_cell_type = args.rnn_cell_type
+#    bidirectional = args.bidirectional
+#    dropout_input = args.dropout_input
+#    dropout_output = args.dropout_output
+#    batch_size = args.batch_size
+#
+#    arguments = vars(args)
+#    del arguments["target"]
+#    del arguments["model"]
+#    del arguments["alpha"]
+#    del arguments["stop"]
+#    del arguments["max_epochs"]
+#    del arguments["test"]
+#    del arguments["threads"]
+#    del arguments["hidden_dimension"]
+#    del arguments["restore_and_test"]
+#    del arguments["version"]
+#
+#    if model == "ffn":
+#        del arguments["rnn_cell_type"]
+#        del arguments["rnn_cell_dim"]
+#        del arguments["bidirectional"]
+#
+#    row = [run_id, target, model, version, dev_result, test_result, epoch, hidden_dimension, learning_rate, computation_time, str(arguments)]
+#
+#    db.insert("Results", row)
+#
 
 def get_run_id():
     if os.path.isfile(".id"):
@@ -123,17 +159,32 @@ def test_model(run_id):
 
     row = list(db_output[0])
  
-    dataset = Dataset("test")
+    version = row[3]
+    
+    dataset = Dataset("test", version)
 
     args = ast.literal_eval(row[-1])
-    network_type = row[2]
     target = row[1]
-    epoch = row[5]
-    hidden_dimension = row[6]
-    learning_rate = row[7]
+    network_type = row[2]
+    epoch = row[6]
+    hidden_dimension = row[7]
+    learning_rate = row[8]
+    rnn_cell_dim = row[9]
+    rnn_cell_type = row[10]
+    bidirectional = bool(row[11])
+    dropout_input = row[12]
+    dropout_output = row[13]
+    batch_size = row[14]
+    use_world = row[15]
+
+    if network_type == "ffn":
+        rnn_cell_type = 'GRU'
+        rnn_cell_dim = 0
+        bidirectional = True
 
     model = Network(network_type, dataset.vocabulary_length(), hidden_dimension = hidden_dimension, run_id = run_id, learning_rate = learning_rate, target = target,
-                        rnn_cell_dim = args["rnn_cell_dim"], rnn_cell_type = args["rnn_cell_type"], bidirectional = args["bidirectional"], threads = 1)
+                        rnn_cell_dim = rnn_cell_dim, rnn_cell_type = rnn_cell_type, bidirectional = bidirectional, use_world = use_world, 
+                        dropout_input = dropout_input, dropout_output = dropout_output, threads = 1)
 
     checkpoint = tf.train.get_checkpoint_state("checkpoints/" + str(run_id))
     model.saver.restore(model.session, checkpoint.model_checkpoint_path)
@@ -154,7 +205,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--model", default="ffn", type=str, choices=["ffn", "rnn", "benchmark"], help="Model to use")
-    parser.add_argument("--max_epochs", default=100, type=int, help="Maximum number of epochs")
+    parser.add_argument("--max_epochs", default=1000, type=int, help="Maximum number of epochs")
     parser.add_argument("--batch_size", default=8, type=int, help="Batch size")
     parser.add_argument("--stop", default=1, type=int, help="Number of epochs without improvement before stopping training")
     parser.add_argument("--hidden_dimension", default=128, type=int, help="Number of neurons in last hidden layer")
@@ -166,6 +217,10 @@ def parse_arguments():
     parser.add_argument("--target", default="source", type=str, choices=["source", "location"], help="Whether model should predict which block will be moved (source) or where it will be moved (location)")
     parser.add_argument("--test", default=False, type=bool, help="Test trained model on testing data")
     parser.add_argument("--restore_and_test", default=-1, type=int, help="Load model with given id and test it on test data")
+    parser.add_argument("--use_world", default=False, type=bool, help="Whether model should use world state as input")
+    parser.add_argument("--version", default=1, type=int, help="Which version of data to use")
+    parser.add_argument("--dropout_input", default=0, type=float, help="Input dropout rate")
+    parser.add_argument("--dropout_output", default=0, type=float, help="Output dropout rate")
 
     return parser.parse_args()
 
@@ -182,16 +237,17 @@ def main():
     run_id = get_run_id()
     start_time = time.time()
 
-    train_data = Dataset("train")
-    dev_data = Dataset("dev")
-    test_data = Dataset("test")
+    train_data = Dataset("train", args.version)
+    dev_data = Dataset("dev", args.version)
+    test_data = Dataset("test", args.version)
 
-    elif args.model in ["rnn", "ffn"]:
+    if args.model in ["rnn", "ffn"]:
         model = Network(args.model, train_data.vocabulary_length(), hidden_dimension = args.hidden_dimension, run_id = run_id, learning_rate = args.alpha, target = args.target,
-                        rnn_cell_dim = args.rnn_cell_dim, rnn_cell_type = args.rnn_cell_type, bidirectional = args.bidirectional, threads = args.threads)
+                        rnn_cell_dim = args.rnn_cell_dim, rnn_cell_type = args.rnn_cell_type, bidirectional = args.bidirectional, threads = args.threads, use_world = args.use_world,
+                        dropout_input = args.dropout_input, dropout_output = args.dropout_output)
 
     elif args.model in ["benchmark"]:
-        model = BenchmarkModel()
+        model = BenchmarkModel(args.version)
     
     epochs_without_improvement = 0
     best_results = (0.0, 1000000.0, -1)

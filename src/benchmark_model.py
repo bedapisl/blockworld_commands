@@ -6,9 +6,10 @@ from setting import digits, logos, directions, compass_directions
 
 
 class BenchmarkModel:
-    def __init__(self, dimension = 2):
+    def __init__(self, version, dimension = 2):
         db = Database()
         
+        self.version = version
         self.dimension = dimension
         self.block_names = []
         self.direction_names = []
@@ -16,7 +17,7 @@ class BenchmarkModel:
         for i, digit in enumerate(digits):
             self.block_names.append([])
             self.block_names[i].append(self.get_word_id(digit, db))
-            self.block_names[i].append(self.get_word_id(str(i), db))
+            self.block_names[i].append(self.get_word_id(str(i + 1), db))
             for logo_part in logos[i].split():
                 self.block_names[i].append(self.get_word_id(logo_part, db))
         
@@ -27,7 +28,7 @@ class BenchmarkModel:
             
 
     def get_word_id(self, word, db):
-        word_id = db.get_all_rows_single_element("SELECT TokenID FROM Vocabulary WHERE Token = '" + str(word) + "'")
+        word_id = db.get_all_rows_single_element("SELECT TokenID FROM Vocabulary WHERE Token = '" + str(word) + "' AND Version = " + str(self.version))
         if len(word_id) == 1:
             return word_id[0]
 
@@ -90,6 +91,10 @@ class BenchmarkModel:
 
             if direction == 3:
                 locations[-1][-1] -= 1
+
+            #print(sources[-1])
+            #print(command)
+            #pdb.set_trace()
         
         #locations = [item for sublist in locations for item in sublist]     #flatten locations
         return sources, locations
