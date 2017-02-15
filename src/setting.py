@@ -7,6 +7,8 @@ directions = ["left", "above", "right", "under"]
 
 compass_directions = ["west", "north", "east", "south"]
 
+all_tags = ["ADJ", "ADV", "INTJ", "NOUN", "PROPN", "VERB", "ADP", "AUX", "CCONJ", "CONJ", "DET", "NUM", "PART", "PRON", "SCONJ", "PUNCT", "SYM", "X"]
+
 max_command_len = 100
 
 spell_check = True

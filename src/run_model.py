@@ -13,11 +13,14 @@ import tensorflow as tf
 import time
 import os.path
 import ast
+from drawer import Drawer
+from setting import logos
 
 
 def evaluate(model, dataset, epoch, dimension = 2):
-    commands, worlds, sources, locations = dataset.get_all_data()
-    predicted_sources, predicted_locations = model.predict(commands, worlds, sources, locations, dataset.dataset_name)
+    commands, worlds, sources, locations, tags = dataset.get_all_data()
+    #raw_commands, _, _, _ = dataset.get_raw_commands_and_logos()
+    predicted_sources, predicted_locations = model.predict(commands, worlds, sources, locations, tags, dataset.dataset_name)
  
     source_accuracy = None
     location_distance = None
@@ -27,8 +30,6 @@ def evaluate(model, dataset, epoch, dimension = 2):
         for i in range(0, len(commands)):
             if sources[i] == predicted_sources[i]:
                 source_correct += 1
-            #else:
-                #pdb.set_trace()
         
         source_accuracy = source_correct / float(len(commands))
 
@@ -40,6 +41,72 @@ def evaluate(model, dataset, epoch, dimension = 2):
         location_distance = location_difference / float(len(commands))
 
     return (source_accuracy, location_distance, epoch)
+
+
+def create_images(run_id):  
+    args = load_args(run_id)
+    model = load_model(args, run_id)
+    dataset = Dataset("dev", args["version"])
+
+    commands, worlds, sources, locations, tags = dataset.get_all_data()
+    raw_commands, is_logos, command_ids, tokenized = dataset.get_raw_commands_and_logos()
+
+    predicted_sources, predicted_locations = model.predict(commands, worlds, sources, locations, tags, dataset.dataset_name)
+
+    drawer = Drawer("./images/" + str(run_id))
+
+    if predicted_sources is None:
+        predicted_sources = sources
+        target_info = "Predicting location"
+        predicting_source = False
+        references, location_references, location_directions = model.get_reference(commands, worlds, sources, locations, tags, dataset.dataset_name)
+
+    elif predicted_locations is None:
+        predicted_locations = locations
+        target_info = "Predicting source"
+        predicting_source = True
+
+    for i in range(0, len(predicted_locations)):
+        world_before = []
+        for j in range(0, len(worlds[i]), 2):
+            world_before.append((worlds[i][j], worlds[i][j + 1]))
+        
+        world_after = copy.deepcopy(world_before)
+        world_after[predicted_sources[i]] = predicted_locations[i]
+
+        result = ""
+        result_description = ""
+        reference_description = ""
+        correct_location = None
+        if predicting_source:
+            if not is_logos[i]:
+                result_description = "predicted: " + str(predicted_sources[i] + 1) + ", correct: " + str(sources[i] + 1)
+            else:
+                result_description = "predicted: " + str(logos[predicted_sources[i]]) + ", correct: " + str(logos[sources[i]])
+            if predicted_sources[i] == sources[i]:
+                result = "correct"
+            else:
+                result = "wrong"
+        else:
+            result = str(distance.euclidean(predicted_locations[i], locations[i]))
+            result_description = "predicted: " + str(predicted_locations[i]) + ", correct: " + str(locations[i])
+            for j in range(len(references[i])):
+                if is_logos[i]:
+                    reference_description += logos[j] + ": " + format(references[i][j], ".2f") + ", "
+                else:
+                    reference_description += str(j + 1) + ": " + format(references[i][j], ".2f") + ", "
+
+                if j % 8 == 7:
+                    reference_description += "\n"
+            
+
+            reference_description += "\nreference: " + str(location_references[i]) + ", direction: " + str(location_directions[i])
+            correct_location = locations[i]
+        
+        other_info = target_info + ", " + str(command_ids[i]) + ", " + result_description + ", " + result + "\n\n" + reference_description
+        filename = result + "_" + str(command_ids[i])
+
+        drawer.save_image(raw_commands[i] + "\n" + str(tokenized[i]), world_before, world_after, is_logos[i], other_info, filename, correct_location, predicted_sources[i])
 
 
 def improvement(best_results, current_results):
@@ -66,23 +133,22 @@ def print_results(results):
 def save(run_id, args, dev_result, test_result, start_time):
     db = Database()
     epoch = dev_result[2]
-    if args.target == "source":
+    if args["target"] == "source":
         dev_result = dev_result[0]
         test_result = test_result[0]
     else:
         dev_result = dev_result[1]
         test_result = test_result[1]
 
-    seconds = (time.time() - start_time) * args.threads
+    seconds = (time.time() - start_time) * args["threads"]
     computation_time = str(int(seconds / 3600)) + ":" + str(int(seconds / 60) % 60)
 
-    db_cols = ["run_id", "target", "model", "version", "dev_result", "test_result", "epoch", "hidden_dimension", "alpha", "rnn_cell_dim", "rnn_cell_type", "bidirectional", "dropout_input", "dropout_output", "batch_size", "use_world", "computation_time", "args"]
+    db_cols = ["run_id", "target", "model", "version", "dev_result", "test_result", "epoch", "hidden_dimension", "learning_rate", "rnn_cell_dim", "rnn_cell_type", "bidirectional", "dropout_input", "dropout_output", "batch_size", "use_world", "embeddings", "computation_time", "args"]
     
-    args_to_delete = ["max_epochs", "test", "restore_and_test"]
-    if model == "ffn":
+    args_to_delete = ["max_epochs", "test", "restore_and_test", "threads", "stop", "create_images", "continue_training"]
+    if args["model"] == "ffn":
         args_to_delete += ["rnn_cell_type", "rnn_cell_dim", "bidirectional"]
     
-    args = vars(args)
     for to_delete in args_to_delete:
         if to_delete in args.keys():
             del args[to_delete]
@@ -93,46 +159,15 @@ def save(run_id, args, dev_result, test_result, start_time):
         if col in args.keys():
             row.append(args[col])
             del args[col]
-        elif col in ["run_id", "dev_result", "test_result", "computation_time", "args"]:
+        elif col in ["run_id", "dev_result", "test_result", "computation_time", "epoch"]:
             row.append(eval(col))
+        elif col in ["args"]:
+            row.append(str(args))
         else:
             row.append(None)
 
     db.insert("Results", row)
-#
-#    target = args.target
-#    model = args.model
-#    version = args.version
-#    learning_rate = args.alpha
-#    hidden_dimension = args.hidden_dimension
-#    rnn_cell_dim = args.rnn_cell_dim
-#    rnn_cell_type = args.rnn_cell_type
-#    bidirectional = args.bidirectional
-#    dropout_input = args.dropout_input
-#    dropout_output = args.dropout_output
-#    batch_size = args.batch_size
-#
-#    arguments = vars(args)
-#    del arguments["target"]
-#    del arguments["model"]
-#    del arguments["alpha"]
-#    del arguments["stop"]
-#    del arguments["max_epochs"]
-#    del arguments["test"]
-#    del arguments["threads"]
-#    del arguments["hidden_dimension"]
-#    del arguments["restore_and_test"]
-#    del arguments["version"]
-#
-#    if model == "ffn":
-#        del arguments["rnn_cell_type"]
-#        del arguments["rnn_cell_dim"]
-#        del arguments["bidirectional"]
-#
-#    row = [run_id, target, model, version, dev_result, test_result, epoch, hidden_dimension, learning_rate, computation_time, str(arguments)]
-#
-#    db.insert("Results", row)
-#
+
 
 def get_run_id():
     if os.path.isfile(".id"):
@@ -151,7 +186,15 @@ def get_run_id():
     return run_id
 
 
-def test_model(run_id):
+def to_bool(string):
+    if string is None:  
+        return None
+
+    else:
+        return bool(int(string))
+
+
+def load_args(run_id):
     db = Database()
     db_output = db.get_all_rows("SELECT * FROM Results WHERE RunID = " + str(run_id))
     if len(db_output) != 1:
@@ -159,36 +202,57 @@ def test_model(run_id):
 
     row = list(db_output[0])
  
-    version = row[3]
-    
-    dataset = Dataset("test", version)
-
     args = ast.literal_eval(row[-1])
-    target = row[1]
-    network_type = row[2]
-    epoch = row[6]
-    hidden_dimension = row[7]
-    learning_rate = row[8]
-    rnn_cell_dim = row[9]
-    rnn_cell_type = row[10]
-    bidirectional = bool(row[11])
-    dropout_input = row[12]
-    dropout_output = row[13]
-    batch_size = row[14]
-    use_world = row[15]
+    args["target"] = row[1]
+    args["network_type"] = row[2]
+    args["version"] = row[3]
+    args["epoch"] = row[6]
+    args["hidden_dimension"] = row[7]
+    args["learning_rate"] = row[8]
+    args["rnn_cell_dim"] = row[9]
+    args["rnn_cell_type"] = row[10]
+    args["bidirectional"] = to_bool(row[11])
+    args["dropout_input"] = row[12]
+    args["dropout_output"] = row[13]
+    args["batch_size"] = row[14]
+    args["use_world"] = to_bool(row[15])
+    args["embeddings"] = row[16]
 
-    if network_type == "ffn":
-        rnn_cell_type = 'GRU'
-        rnn_cell_dim = 0
-        bidirectional = True
+    if args["network_type"] == "ffn":
+        args["rnn_cell_type"] = 'GRU'
+        args["rnn_cell_dim"] = 0
+        args["bidirectional"] = True
 
-    model = Network(network_type, dataset.vocabulary_length(), hidden_dimension = hidden_dimension, run_id = run_id, learning_rate = learning_rate, target = target,
-                        rnn_cell_dim = rnn_cell_dim, rnn_cell_type = rnn_cell_type, bidirectional = bidirectional, use_world = use_world, 
-                        dropout_input = dropout_input, dropout_output = dropout_output, threads = 1)
+    return args
+
+
+def load_best_result(run_id):
+    db = Database()
+    db_output = db.get_all_rows("SELECT * FROM Results WHERE RunID = " + str(run_id))
+    if len(db_output) != 1:
+        raise ValueError("No data in database for run_id: " + str(run_id))
+
+    row = list(db_output[0])
+ 
+    if row[1] == "source":
+        return (row[4], 1000000, row[6])
+    else:
+        return (0.0, row[4], row[6])
+
+
+def load_model(args, run_id):
+    model = Network(args["network_type"], hidden_dimension = args["hidden_dimension"], run_id = run_id, learning_rate = args["learning_rate"], target = args["target"],
+                        rnn_cell_dim = args["rnn_cell_dim"], rnn_cell_type = args["rnn_cell_type"], bidirectional = args["bidirectional"], use_world = args["use_world"], 
+                        dropout_input = args["dropout_input"], dropout_output = args["dropout_output"], embeddings = args["embeddings"], version = args["version"], threads = 1)
 
     checkpoint = tf.train.get_checkpoint_state("checkpoints/" + str(run_id))
     model.saver.restore(model.session, checkpoint.model_checkpoint_path)
+    return model
 
+
+def test_model(run_id):
+    args = load_args(run_id)
+    model = load_model(args, run_id)
     test_results = evaluate(model, dataset, epoch)
     print_results(test_results)
 
@@ -198,7 +262,6 @@ def test_model(run_id):
         test_result = test_results[1]
 
     db.execute("UPDATE Results SET TestResult = " + str(test_result) + " WHERE RunID = " + str(run_id))
-        
 
 
 def parse_arguments():
@@ -207,22 +270,31 @@ def parse_arguments():
     parser.add_argument("--model", default="ffn", type=str, choices=["ffn", "rnn", "benchmark"], help="Model to use")
     parser.add_argument("--max_epochs", default=1000, type=int, help="Maximum number of epochs")
     parser.add_argument("--batch_size", default=8, type=int, help="Batch size")
-    parser.add_argument("--stop", default=1, type=int, help="Number of epochs without improvement before stopping training")
+    parser.add_argument("--stop", default=5, type=int, help="Number of epochs without improvement before stopping training")
     parser.add_argument("--hidden_dimension", default=128, type=int, help="Number of neurons in last hidden layer")
     parser.add_argument("--threads", default=1, type=int, help="Maximum number of threads to use")
-    parser.add_argument("--alpha", default=0.001, type=float, help="Learning rate")
+    parser.add_argument("--learning_rate", default=0.01, type=float, help="Learning rate")
     parser.add_argument("--rnn_cell_dim", default=512, type=int, help="Dimension of rnn cells.")
     parser.add_argument("--rnn_cell_type", default="GRU", type=str, choices=["LSTM", "GRU"], help="Type of rnn cell")
     parser.add_argument("--bidirectional", default=True, type=bool, help="Whether the RNN network is bidirectional")
-    parser.add_argument("--target", default="source", type=str, choices=["source", "location"], help="Whether model should predict which block will be moved (source) or where it will be moved (location)")
+    parser.add_argument("--target", default="location", type=str, choices=["source", "location"], help="Whether model should predict which block will be moved (source) or where it will be moved (location)")
     parser.add_argument("--test", default=False, type=bool, help="Test trained model on testing data")
     parser.add_argument("--restore_and_test", default=-1, type=int, help="Load model with given id and test it on test data")
     parser.add_argument("--use_world", default=False, type=bool, help="Whether model should use world state as input")
     parser.add_argument("--version", default=1, type=int, help="Which version of data to use")
     parser.add_argument("--dropout_input", default=0, type=float, help="Input dropout rate")
     parser.add_argument("--dropout_output", default=0, type=float, help="Output dropout rate")
+    parser.add_argument("--embeddings", default="none", type=str, choices=["none", "random", "pretrained", "character"], help="Type of embeddings")
+    parser.add_argument("--continue_training", default=-1, type=int, help="Load model with given ID and continue training")
+    parser.add_argument("--create_images", default=-1, type=int, help="Load model with given id and create images based on models predictions")
+    parser.add_argument("--use_tags", default=False, type=bool, help="Whether use tags (Noun, Verb) as part of input to model")
+    parser.add_argument("--rnn_output", default="last_state", choices = ["last_state", "all_outputs", "all_outputs_hidden"], type=str, help="How and what output of rnn will be used")
+    parser.add_argument("--hidden_layers", default=1, type=int, help="Number of hidden layers in the middle part of network")
 
-    return parser.parse_args()
+    args = parser.parse_args()
+    args = vars(args)
+
+    return args
 
 
 def main():
@@ -230,56 +302,77 @@ def main():
 
     args = parse_arguments()
     
-    if args.restore_and_test != -1:
-        test_model(args.restore_and_test)
+    if args["restore_and_test"] != -1:
+        test_model(args["restore_and_test"])
         return
 
-    run_id = get_run_id()
-    start_time = time.time()
-
-    train_data = Dataset("train", args.version)
-    dev_data = Dataset("dev", args.version)
-    test_data = Dataset("test", args.version)
-
-    if args.model in ["rnn", "ffn"]:
-        model = Network(args.model, train_data.vocabulary_length(), hidden_dimension = args.hidden_dimension, run_id = run_id, learning_rate = args.alpha, target = args.target,
-                        rnn_cell_dim = args.rnn_cell_dim, rnn_cell_type = args.rnn_cell_type, bidirectional = args.bidirectional, threads = args.threads, use_world = args.use_world,
-                        dropout_input = args.dropout_input, dropout_output = args.dropout_output)
-
-    elif args.model in ["benchmark"]:
-        model = BenchmarkModel(args.version)
+    if args["create_images"] != -1:
+        create_images(args["create_images"])
+        return
+ 
+    train_data = Dataset("train", args["version"])
+    dev_data = Dataset("dev", args["version"])
+    test_data = Dataset("test", args["version"])
     
+    
+    start_time = time.time()
+    
+    starting_epoch = 0
     epochs_without_improvement = 0
     best_results = (0.0, 1000000.0, -1)
+ 
+    if args["continue_training"] == -1:
+        run_id = get_run_id()
 
-    for epoch in range(args.max_epochs):
+        if args["model"] in ["rnn", "ffn"]:
+            model = Network(args["model"], hidden_dimension = args["hidden_dimension"], run_id = run_id, learning_rate = args["learning_rate"], target = args["target"],
+                            rnn_cell_dim = args["rnn_cell_dim"], rnn_cell_type = args["rnn_cell_type"], bidirectional = args["bidirectional"], threads = args["threads"], use_world = args["use_world"],
+                            dropout_input = args["dropout_input"], dropout_output = args["dropout_output"], embeddings = args["embeddings"], version = args["version"], use_tags = args["use_tags"],
+                            rnn_output = args["rnn_output"], hidden_layers = args["hidden_layers"])
+
+        elif args["model"] in ["benchmark"]:
+            model = BenchmarkModel(args["version"])
+    
+    else:
+        run_id = args["continue_training"]
+        user_args = copy.deepcopy(args)
+        args = load_args(run_id)
+        args["stop"] = user_args["stop"]
+        args["max_epochs"] = user_args["max_epochs"]
+        args["test"] = user_args["test"]
+        model = load_model(args, run_id)
+        best_result = load_best_result(run_id)
+        starting_epoch = best_result[2]
+    
+    for epoch in range(starting_epoch, args["max_epochs"]):
         train_data.next_epoch()
         
         while not train_data.epoch_end():
-            commands, worlds, sources, locations = train_data.get_next_batch(args.batch_size)
-            model.train(commands, worlds, sources, locations)
+            commands, worlds, sources, locations, tags = train_data.get_next_batch(args["batch_size"])
+            model.train(commands, worlds, sources, locations, tags)
 
         current_results = evaluate(model, dev_data, epoch)
+        
         print_results(current_results)
         
         if improvement(best_results, current_results):
             best_results = current_results
             epochs_without_improvement = 0
-            if args.model != "benchmark":
+            if args["model"] != "benchmark":
                 run_dir = "checkpoints/" + str(run_id)
                 if not os.path.isdir(run_dir):
                     os.makedirs(run_dir)
                 model.saver.save(model.session, run_dir + "/best.ckpt")
         else:
             epochs_without_improvement += 1
-            if epochs_without_improvement == args.stop:
+            if epochs_without_improvement == args["stop"]:
                break
     
     print("Best result:")
     print_results(best_results)
 
-    if args.test:
-        if args.model != "benchmark":
+    if args["test"]:
+        if args["model"] != "benchmark":
             best_net = tf.train.get_checkpoint_state("checkpoints/" + str(run_id))
             model.saver.restore(model.session, best_net.model_checkpoint_path)
         
@@ -290,11 +383,8 @@ def main():
     else:
         test_results = (None, None, None)
 
-
     save(run_id, args, best_results, test_results, start_time)
 
-
-        
 
 
 main()       

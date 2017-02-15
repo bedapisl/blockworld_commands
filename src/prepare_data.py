@@ -4,13 +4,17 @@ import re
 import hunspell
 from scipy.spatial import distance
 
-from setting import digits, logos
+from setting import digits, logos, all_tags
 from utils import levenshtein_distance
+
+from ufal.udpipe import *
 
 
 class Tokenizer():
-    def __init__(self, spell_check):
+    def __init__(self, spell_check, use_udpipe, ignore_words):
         self.spell_check = spell_check
+        self.use_udpipe = use_udpipe
+        self.ignore_words = ignore_words
         self.changes = {}
         if self.spell_check:
             self.checker = hunspell.HunSpell('/usr/share/hunspell/en_US.dic', '/usr/share/hunspell/en_US.aff')
@@ -23,6 +27,10 @@ class Tokenizer():
             self.checker.add('bmw')
             self.checker.add('heineken')
             self.checker.add('mercedes')
+
+        if self.use_udpipe:
+            self.model = Model.load("../data/english-ud-1.2-160523.udpipe")
+            self.pipeline = Pipeline(self.model, "tokenize", Pipeline.DEFAULT, Pipeline.DEFAULT, "conllu")
 
     
     def correct(self, token):
@@ -38,24 +46,75 @@ class Tokenizer():
 
         return token
 
+    
+    def udpipe_process(self, command):
+        processed = self.pipeline.process(command.lower())
+        words = processed.split("\n")
+        base_forms = []
+        tags = []
+
+        for word in words:
+            parts = word.split("\t")
+            if len(parts) < 3:
+                continue
+            
+            if parts[1].lower() in ["ups", "sri"]:              #udpipe uncorrectly changes these to "up" and "sr"
+                base_forms.append(parts[1].lower())
+            else:
+                base_forms.append(parts[2].lower())
+            tags.append(parts[3])
+
+        return base_forms, tags
+
 
     def tokenize(self, command):
-        command = command.lower() + " "
-        command = command.replace(",", " , ").replace("'s", "").replace("’s", "").replace("\"", "").replace("(", "").replace(")", "").replace(";", " ").replace(". ", " . ").replace("'", "")
-        command = re.sub("(\D)-(\D)", "\g<1> \g<2>", command)       #substitutes - for space if there are not numbers before and after -
-        command = re.sub("([a-zA-Z])([0-9])", "\g<1> \g<2>", command)
-        command = re.sub("([0-9])([a-zA-Z])", "\g<1> \g<2>", command)
+        use_tags = False
+        if self.use_udpipe:
+            tokens, tags = self.udpipe_process(command)
 
-        tokens = command.split()
+            new_tokens = []
+            new_tags = []
+            for i, token in enumerate(tokens):
+                token = re.sub("([0-9])([a-zA-Z])", "\g<1> \g<2>", token)
+                token_parts = token.replace("-", " ").replace("'", " ").replace("’", " ").replace("hp.", "hp").split(" ")
+                for token_part in token_parts:
+                    if token_part != '':
+                        new_tokens.append(token_part)
+                        new_tags.append(tags[i])
+
+            tokens = new_tokens
+            tags = new_tags
+            use_tags = True
+
+        else:
+            command = command.lower() + " "
+            command = command.replace(",", " , ").replace("'s", "").replace("’s", "").replace("\"", "").replace("(", "").replace(")", "").replace(";", " ").replace(". ", " . ").replace("'", "")
+            command = re.sub("(\D)-(\D)", "\g<1> \g<2>", command)       #substitutes - for space if there are not numbers before and after -
+            command = re.sub("([a-zA-Z])([0-9])", "\g<1> \g<2>", command)
+            command = re.sub("([0-9])([a-zA-Z])", "\g<1> \g<2>", command)
+
+            tokens = command.split()
+            tags = None
         
         if self.spell_check:
             corrected_tokens = []
-            for token in tokens:
-                corrected_tokens.append(self.correct(token))
+            new_tags = []
+            for i, token in enumerate(tokens):
+                for token_part in self.correct(token).split(" "):
+                    if token_part not in self.ignore_words:
+                        corrected_tokens.append(token_part)
+                        if tags is not None:
+                            new_tags.append(tags[i])
             
             tokens = corrected_tokens
+            tags = new_tags
 
-        return tokens
+        if use_tags:
+            assert len(tags) == len(tokens)
+        else:
+            tags = None
+
+        return tokens, tags
 
 
 def create_vocabulary(version, tokenizer):
@@ -65,7 +124,8 @@ def create_vocabulary(version, tokenizer):
 
     tokens = {}
     for command in training_commands:
-        for token in tokenizer.tokenize(command):
+        command_tokens, _ = tokenizer.tokenize(command)
+        for token in command_tokens:
             if token in tokens:
                 tokens[token] += 1
             else:
@@ -139,7 +199,7 @@ def get_possible_reference(word, decoration):
 
 # returns nearest block which could have been referenced in command
 def get_reference(command, decoration, location, source, world_after, tokenizer):
-    possible_references = set(map(lambda token : get_possible_reference(token, decoration), tokenizer.tokenize(command)))
+    possible_references = set(map(lambda token : get_possible_reference(token, decoration), tokenizer.tokenize(command)[0]))
 
     min_distance = 10000000
     best_reference = -1
@@ -161,14 +221,30 @@ def encode_command(command, vocabulary, tokenizer):
     encoded = []
     encoded.append(vocabulary["<bos>"])
 
-    for word in tokenizer.tokenize(command):
+    tokens, command_tags = tokenizer.tokenize(command)
+
+    for i, word in enumerate(tokens):
         if word in vocabulary:
             encoded.append(vocabulary[word])
         else:
             encoded.append(vocabulary["<unk>"])
+            tokens[i] = "<unk>(" + word + ")"
+
     
     encoded.append(vocabulary["<eos>"])
-    return encoded
+
+    if command_tags is not None:
+        command_tags.insert(0, "X")
+        command_tags.append("X")
+        
+        encoded_tags = []
+        for tag in command_tags:
+            encoded_tags.append(all_tags.index(tag))
+
+    else:
+        encoded_tags = None
+
+    return encoded, encoded_tags, tokens
     
 
 def create_training_data(version, tokenizer):
@@ -186,22 +262,31 @@ def create_training_data(version, tokenizer):
         location = world_after[source]
         reference = get_reference(command, decoration, location, source, world_after, tokenizer)
         direction = get_direction(source, reference, world_after)
-        encoded_command = encode_command(command, vocabulary, tokenizer)
+        encoded_command, encoded_tags, tokens = encode_command(command, vocabulary, tokenizer)
 
-        data.append([command_id, dataset, version, str(encoded_command), str(world_before), source, str(location), reference, str(direction), command])
+        if encoded_tags is not None:
+            encoded_tags = str(encoded_tags)
+
+        data.append([command_id, dataset, version, str(encoded_command), encoded_tags, str(world_before), source, str(location), reference, str(direction), command, str(tokens)])
 
     db.insert_many("ModelInput", data)
 
 
+def prepare_data(version, spell_check, use_udpipe, ignore_words):
+    tokenizer = Tokenizer(spell_check = spell_check, use_udpipe = use_udpipe, ignore_words = ignore_words)
+    create_vocabulary(version = version, tokenizer = tokenizer)
+    create_training_data(version = version, tokenizer = tokenizer)
+
+
+def version_3_ignore_words():
+    return ["the", ".", "to", "so", ",", "s", "a", "e"]
+
+
 def main():
-    tokenizer = Tokenizer(spell_check = False)
-    create_vocabulary(version = 0, tokenizer = tokenizer)
-    create_training_data(version = 0, tokenizer = tokenizer)
-
-    tokenizer = Tokenizer(spell_check = True)
-    create_vocabulary(version = 1, tokenizer = tokenizer)
-    create_training_data(version = 1, tokenizer = tokenizer)
-
+    #prepare_data(0, False, False, [])
+    #prepare_data(1, True, False, [])
+    #prepare_data(2, True, True, [])
+    #prepare_data(3, True, True, version_3_ignore_words())
 
 main()
 

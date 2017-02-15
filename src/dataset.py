@@ -4,7 +4,7 @@ from database import Database
 import ast
 import numpy as np
 import pdb
-from setting import max_command_len
+from setting import max_command_len, all_tags
 
 
 class Dataset:
@@ -16,7 +16,12 @@ class Dataset:
 
         db = Database()
 
-        data = db.get_all_rows("SELECT Command, WorldBefore, Source, Location FROM ModelInput WHERE Dataset = '" + str(dataset) + "' AND Version = " + str(version) + " ORDER BY CommandID")
+        data = db.get_all_rows("""SELECT ModelInput.Command, WorldBefore, Source, Location, RawCommand, Decoration = 'logo', ModelInput.CommandID, Tags, Tokenized
+                                    FROM ModelInput 
+                                    JOIN Command ON Command.CommandID = ModelInput.CommandID
+                                    JOIN Configuration ON Command.ConfigurationID = Configuration.ConfigurationID
+                                    WHERE ModelInput.Dataset = '""" 
+                                    + str(dataset) + "' AND Version = " + str(version) + " ORDER BY ModelInput.CommandID")
 
         if shuffle:
             random.shuffle(data)       
@@ -25,8 +30,13 @@ class Dataset:
         self.worlds = []
         self.sources = []
         self.locations = []
+        self.raw_commands = []
+        self.logos = []
+        self.command_ids = []
+        self.tags = []
+        self.tokenized = []
 
-        for command, world, source_id, location in data:
+        for command, world, source_id, location, raw_command, logo, command_id, tag, tokens in data:
             command = ast.literal_eval(command)
             while len(command) < max_command_len:
                 command.append(1)
@@ -68,7 +78,20 @@ class Dataset:
             else:
                 self.locations.append(list(location))
 
+            self.raw_commands.append(raw_command)
+            self.logos.append(logo)
+            self.command_ids.append(command_id)
+            if tag is not None:
+                tag = ast.literal_eval(tag)
+            else:
+                tag = []
+
+            while len(tag) < max_command_len:
+                tag.append(all_tags.index("X"))
+            self.tags.append(tag)
+            self.tokenized.append(tokens)
     
+
     def epoch_end(self):
         return self.instance_index == len(self.commands)
 
@@ -84,37 +107,47 @@ class Dataset:
         self.instance_index = batch_end
 
         return (np.array(self.commands[batch_start:batch_end]), np.array(self.worlds[batch_start:batch_end]), 
-                    np.array(self.sources[batch_start:batch_end]), np.array(self.locations[batch_start:batch_end]))
+                    np.array(self.sources[batch_start:batch_end]), np.array(self.locations[batch_start:batch_end]), np.array(self.tags[batch_start:batch_end]))
 
 
     def get_all_data(self):
-        return np.array(self.commands), np.array(self.worlds), np.array(self.sources), np.array(self.locations)
+        return np.array(self.commands), np.array(self.worlds), np.array(self.sources), np.array(self.locations), np.array(self.tags)
+
+    
+    def get_raw_commands_and_logos(self):
+        return self.raw_commands, self.logos, self.command_ids, self.tokenized
 
     
     def shuffle(self):
         index_shuf = list(range(len(self.commands)))
         random.shuffle(index_shuf)
         new_commands = []
-        new_command_len = []
         new_worlds = []
         new_sources = []
         new_locations = []
+        new_raw_commands = []
+        new_logos = []
+        new_command_ids = []
+        new_tags = []
+        new_tokenized = []
         for i in index_shuf:
             new_commands.append(self.commands[i])
             new_worlds.append(self.worlds[i])
             new_sources.append(self.sources[i])
             new_locations.append(self.locations[i])
+            new_raw_commands.append(self.raw_commands[i])
+            new_logos.append(self.logos[i])
+            new_command_ids.append(self.command_ids[i])
+            new_tags.append(self.tags[i])
+            new_tokenized.append(self.tokenized[i])
     
         self.commands = new_commands
         self.worlds = new_worlds
         self.sources = new_sources
         self.locations = new_locations
-
-
-    def vocabulary_length(self):
-        db = Database()
-        length = db.get_all_rows_single_element("SELECT Max(TokenID) FROM Vocabulary WHERE Version = " + str(self.version))[0]
-
-        return length
-    
+        self.raw_commands = new_raw_commands
+        self.logos = new_logos
+        self.command_ids = new_command_ids
+        self.tags = new_tags
+        self.tokenized = new_tokenized
 

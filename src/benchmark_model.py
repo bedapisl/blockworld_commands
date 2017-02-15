@@ -35,14 +35,16 @@ class BenchmarkModel:
         return -1
 
     
-    def predict(self, commands, worlds, correct_source, correct_location, dataset):
+    def predict(self, commands, worlds, correct_source, correct_location, tags, dataset, raw_commands):
         correct_source = None
         correct_location = None
         dataset = None
         sources = []
         locations = []
 
-        for command, world in zip(commands, worlds):
+        number_of_blocks = [0] * 20
+
+        for k, (command, world) in enumerate(zip(commands, worlds)):
             converted_world = []
             for i in range(0, len(world), self.dimension):
                 converted_world.append([])
@@ -62,6 +64,11 @@ class BenchmarkModel:
                     if word in direction_names:
                         directions_in_command.append(direction_id)
             
+            number_of_blocks[len(set(blocks_in_command))] += 1
+            if len(set(blocks_in_command)) >= 3:
+                print(len(set(blocks_in_command)))
+                print(raw_commands[k])
+ 
             if len(blocks_in_command) == 0:     #no block in command -> no change in world
                 sources.append(0)               
                 locations.append(world[0])
@@ -92,15 +99,17 @@ class BenchmarkModel:
             if direction == 3:
                 locations[-1][-1] -= 1
 
+           
             #print(sources[-1])
             #print(command)
             #pdb.set_trace()
         
         #locations = [item for sublist in locations for item in sublist]     #flatten locations
+        print(number_of_blocks)
         return sources, locations
 
 
-    def train(self, command, world, source_id, location):
+    def train(self, command, world, source_id, location, tags):
         pass
             
 
