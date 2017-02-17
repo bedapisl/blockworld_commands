@@ -7,12 +7,12 @@ from utils import get_embedding_matrix, get_word_characters, vocabulary_length
 
 class Network:
     def __init__(self, network_type, run_id, learning_rate, target, rnn_cell_type, rnn_cell_dim, bidirectional, hidden_dimension, 
-                            use_world, dropout_input, dropout_output, embeddings, version, threads, use_tags, rnn_output, hidden_layers = 2, world_dimension = 2):
+                            use_world, dropout_input, dropout_output, embeddings, version, threads, use_tags, rnn_output, hidden_layers, world_dimension = 2):
         self.target = target
         self.dropout_input = dropout_input
         self.dropout_output = dropout_output
         self.use_tags = use_tags
-        self.rnn_layers = 0
+        self.rnn_layers_created = 0
 
         graph = tf.Graph()
         graph.seed = 42
@@ -87,56 +87,63 @@ class Network:
             ############################## HIDDEN LAYER #############################
             if network_type == "rnn":
                
-                if bidirectional:
-                    self.rnn_input = self.one_hot_words
+                #if bidirectional:
+                #    self.rnn_input = self.one_hot_words
                     #self.bidirectional_rnn_output, self.bidirectional_rnn_state = tf.nn.bidirectional_dynamic_rnn(rnn_cell, rnn_cell, self.one_hot_words, sequence_length = self.command_lens, dtype = tf.float32, scope = "hidden_layer_0")
 
-                    for i in range(0, hidden_layers):
+                #    for i in range(0, hidden_layers):
                         #self.previous_state = tf.concat(1, [self.bidirectional_rnn_output[0], self.bidirectional_rnn_output[1]])
-                        self.bidirectional_rnn_output, self.bidirectional_rnn_state = tf.nn.bidirectional_dynamic_rnn(rnn_cell, rnn_cell, self.rnn_input, sequence_length = self.command_lens, dtype = tf.float32, scope = "hidden_layer_" + str(i))
-                        self.rnn_input = tf.concat(2, [self.bidirectional_rnn_output[0], self.bidirectional_rnn_output[1]])
-
-                    if rnn_output == "last_state":
-                        if rnn_cell_type == "LSTM":
-                            self.rnn_output = tf.concat(1, [self.bidirectional_rnn_state[0].c, self.bidirectional_rnn_state[1].c])
-                        else:
-                            self.rnn_output = tf.concat(1, self.bidirectional_rnn_state)
-                    elif rnn_output == "all_outputs":
-                        self.concatenated_outputs = tf.concat(1, [self.bidirectional_rnn_output[0], self.bidirectional_rnn_output[1]])
-                        self.rnn_output = tf.reduce_sum(self.concatenated_outputs, 1)
-                    
-                    elif rnn_output == "all_outputs_hidden":
-                        self.concatenated_outputs = tf.concat(2, [self.bidirectional_rnn_output[0], self.bidirectional_rnn_output[1]])      
-                        self.flattened_concatenated_rnn_outputs = tf.reshape(self.concatenated_outputs, [-1, rnn_cell_dim * 2])         #bidirectional -> * 2
-                        self.rnn_output_hidden_layer = tf.contrib.layers.fully_connected(self.flattened_concatenated_rnn_outputs, num_outputs = rnn_cell_dim, activation_fn = tf.nn.relu)
-                        self.reshaped_rnn_output_hidden_layer = tf.reshape(self.rnn_output_hidden_layer, [-1, max_command_len, rnn_cell_dim])
-                        self.rnn_output = tf.reduce_sum(self.reshaped_rnn_output_hidden_layer, 1)
-
-                    elif rnn_output == "direct_last_state":
-                        _, self.bidirectional_rnn_state = tf.nn.bidirectional_dynamic_rnn(rnn_cell, rnn_cell, self.rnn_input, se
-
-                        self.reference = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = 20, activation_fn = None)
-                        self.reference_stacked = tf.stack([self.reference] * world_dimension, axis=2)   #[batch, 20, world_dimension]
-                        self.world_reshaped = tf.reshape(self.world, [-1, 20, world_dimension])
-                        self.multiple = tf.multiply(self.reference_stacked, self.world_reshaped)
-                        self.location_by_reference = tf.reduce_sum(self.multiple, axis = 1)
-
-                        self.location_by_direction = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = world_dimension, activation_fn = None)
-                        self.predicted_location = tf.add(self.location_by_reference, self.location_by_direction)
-
-
-                else:
-                    if rnn_cell_type == "LSTM":
-                        _, self.rnn_output_lstm_tuple = tf.nn.dynamic_rnn(rnn_cell, self.one_hot_words, sequence_length = self.command_lens)
-                        self.rnn_output = self.rnn_output_lstm_tuple.c
+                #        self.bidirectional_rnn_output, self.bidirectional_rnn_state = tf.nn.bidirectional_dynamic_rnn(rnn_cell, rnn_cell, self.rnn_input, sequence_length = self.command_lens, dtype = tf.float32, scope = "hidden_layer_" + str(i))
+                #        self.rnn_input = tf.concat(2, [self.bidirectional_rnn_output[0], self.bidirectional_rnn_output[1]])
+                self.rnn_input = self.one_hot_words
+                 
+                if rnn_output == "last_state":
+                    self.hidden_layer = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, rnn_cell_dim, hidden_layers, "last_state")
+                
+                elif rnn_output == "output":
+                    self.hidden_layer = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, rnn_cell_dim, hidden_layers, "output_sum")
+                
+                elif rnn_output == "direct_last_state":
+                    if hidden_layers > 1:
+                        last_rnn_input = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, rnn_cell_dim, hidden_layers - 1, "all_outputs")
                     else:
-                        _, self.rnn_output = tf.nn.dynamic_rnn(rnn_cell, self.one_hot_words, sequence_length = self.command_lens)
+                        last_rnn_input = self.rnn_input
+                    
+                    self.reference = self.rnn_layers(last_rnn_input, self.command_lens, rnn_cell_type, 20, 1, "last_state_sum")
+                    self.location_by_direction = self.rnn_layers(last_rnn_input, self.command_lens, rnn_cell_type, world_dimension, 1, "last_state_sum")
+                
+#                elif rnn_output == "all_outputs_hidden":
+#                    self.concatenated_outputs = tf.concat(2, [self.bidirectional_rnn_output[0], self.bidirectional_rnn_output[1]])      
+#                    self.flattened_concatenated_rnn_outputs = tf.reshape(self.concatenated_outputs, [-1, rnn_cell_dim * 2])         #bidirectional -> * 2
+#                    self.rnn_output_hidden_layer = tf.contrib.layers.fully_connected(self.flattened_concatenated_rnn_outputs, num_outputs = rnn_cell_dim, activation_fn = tf.nn.relu)
+#                    self.reshaped_rnn_output_hidden_layer = tf.reshape(self.rnn_output_hidden_layer, [-1, max_command_len, rnn_cell_dim])
+#                    self.rnn_output = tf.reduce_sum(self.reshaped_rnn_output_hidden_layer, 1)
+#
+#                elif rnn_output == "direct_last_state":
+#                    _, self.bidirectional_rnn_state = tf.nn.bidirectional_dynamic_rnn(rnn_cell, rnn_cell, self.rnn_input, se
+#
+#                    self.reference = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = 20, activation_fn = None)
+#                    self.reference_stacked = tf.stack([self.reference] * world_dimension, axis=2)   #[batch, 20, world_dimension]
+#                    self.world_reshaped = tf.reshape(self.world, [-1, 20, world_dimension])
+#                    self.multiple = tf.multiply(self.reference_stacked, self.world_reshaped)
+#                    self.location_by_reference = tf.reduce_sum(self.multiple, axis = 1)
+#
+#                    self.location_by_direction = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = world_dimension, activation_fn = None)
+#                    self.predicted_location = tf.add(self.location_by_reference, self.location_by_direction)
+#
+#
+#                else:
+#                    if rnn_cell_type == "LSTM":
+#                        _, self.rnn_output_lstm_tuple = tf.nn.dynamic_rnn(rnn_cell, self.one_hot_words, sequence_length = self.command_lens)
+#                        self.rnn_output = self.rnn_output_lstm_tuple.c
+#                    else:
+#                        _, self.rnn_output = tf.nn.dynamic_rnn(rnn_cell, self.one_hot_words, sequence_length = self.command_lens)
                 
                 if use_world:
                     self.world_and_word = tf.concat(1, [self.world, self.rnn_output])
                     self.hidden_layer = tf.contrib.layers.fully_connected(self.world_and_word, num_outputs = hidden_dimension, activation_fn = tf.nn.relu)
-                else:
-                    self.hidden_layer = self.rnn_output
+                #else:
+                #    self.hidden_layer = self.rnn_output
             
             elif network_type == "ffn":
                 self.flattened_one_hot_words = tf.cast(tf.contrib.layers.flatten(self.one_hot_words), tf.float32)
@@ -153,7 +160,7 @@ class Network:
             ################################### DROPOUT OUTPUT ########################
 
             #self.hidden_layer = tf.scalar_mul(self.dropout_output_multiplier, tf.nn.dropout(self.hidden_layer, 1.0 - self.dropout_output_tensor))
-            self.hidden_layer = tf.nn.dropout(self.hidden_layer, 1.0 - self.dropout_output_tensor)
+            #self.hidden_layer = tf.nn.dropout(self.hidden_layer, 1.0 - self.dropout_output_tensor)
             
             ################################### OUTPUT LAYER #########################
 
@@ -167,13 +174,16 @@ class Network:
                 if use_world:
                     self.predicted_location = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = world_dimension, activation_fn = None)
                 else:
-                    self.reference = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = 20, activation_fn = None)
+                    if rnn_output != "direct_last_state":
+                        self.reference = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = 20, activation_fn = None)
+                    
                     self.reference_stacked = tf.stack([self.reference] * world_dimension, axis=2)   #[batch, 20, world_dimension]
                     self.world_reshaped = tf.reshape(self.world, [-1, 20, world_dimension])
                     self.multiple = tf.multiply(self.reference_stacked, self.world_reshaped)
                     self.location_by_reference = tf.reduce_sum(self.multiple, axis = 1)
-
-                    self.location_by_direction = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = world_dimension, activation_fn = None)
+                    
+                    if rnn_output != "direct_last_state":
+                        self.location_by_direction = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = world_dimension, activation_fn = None)
                     self.predicted_location = tf.add(self.location_by_reference, self.location_by_direction)
 
                 self.average_distance = tf.reduce_mean(tf.sqrt(tf.reduce_sum(tf.square(self.location - self.predicted_location), axis = 1)))
@@ -200,37 +210,48 @@ class Network:
             init = tf.global_variables_initializer()
             self.session.run(init)
     
-#    
-#    def rnn_layers(self, rnn_input, sequence_length, rnn_cell_type, rnn_cell_dim, layers, output):
-#        if rnn_cell_type == "LSTM":
-#            rnn_cell = tf.nn.rnn_cell.LSTMCell(rnn_cell_dim)
-#
-#        elif rnn_cell_type == "GRU":
-#            rnn_cell = tf.nn.rnn_cell.GRUCell(rnn_cell_dim)
-#
-#        else:
-#            raise ValueError("RNN cell type must be 'LSTM' or 'GRU'")
-#        
-#        for i in range(0, layers):
-#            scope = "rnn_layer_" + str(self.rnn_layers)
-#            rnn_output, rnn_state = tf.nn.bidirectional_dynamic_rnn(rnn_cell, rnn_cell, rnn_input, sequence_length = sequence_length, dtype = tf.float32, scope = scope)
-#            rnn_input = tf.concat(2, [rnn_output[0], rnn_output[1]])
-#
-#        if output == "last_state":
-#            if rnn_cell_type == "LSTM":
-#                rnn_output = tf.concat(1, [rnn_state[0].c, rnn_state[1].c])
-#            else:
-#                rnn_output = tf.concat(1, self.bidirectional_rnn_state)
-#
-#        elif output == "outputs_sum":
-#            concatenated_outputs = tf.concat(2, [bidirectional_rnn_output[0], bidirectional_rnn_output[1]])
-#            rnn_output = tf.reduce_sum(concatenated_outputs, 1)
-#        
-#        elif output == "all_outputs:":
-#            concatenated_outputs = tf.concat(
-#            
+    
+    def rnn_layers(self, rnn_input, sequence_length, rnn_cell_type, rnn_cell_dim, layers, output):
+        assert layers > 0
 
+        if rnn_cell_type == "LSTM":
+            rnn_cell = tf.nn.rnn_cell.LSTMCell(rnn_cell_dim)
+
+        elif rnn_cell_type == "GRU":
+            rnn_cell = tf.nn.rnn_cell.GRUCell(rnn_cell_dim)
+
+        else:
+            raise ValueError("RNN cell type must be 'LSTM' or 'GRU'")
         
+        for i in range(0, layers):
+            scope = "rnn_layer_" + str(self.rnn_layers_created)
+            self.rnn_layers_created += 1
+            rnn_output, rnn_state = tf.nn.bidirectional_dynamic_rnn(rnn_cell, rnn_cell, rnn_input, sequence_length = sequence_length, dtype = tf.float32, scope = scope)
+            rnn_input = tf.concat(2, [rnn_output[0], rnn_output[1]])
+
+        if output == "last_state":
+            if rnn_cell_type == "LSTM":
+                rnn_output = tf.concat(1, [rnn_state[0].c, rnn_state[1].c])
+            else:
+                rnn_output = tf.concat(1, rnn_state)
+        
+        elif output == "last_state_sum":
+            if rnn_cell_type == "LSTM":
+                rnn_output = tf.reduce_sum([rnn_state[0].c, rnn_state[1].c], 0)
+            else:
+                rnn_output = tf.reduce_sum(rnn_state, 0)
+
+        elif output == "output_sum":
+            concatenated_outputs = tf.concat(2, [rnn_output[0], rnn_output[1]])
+            rnn_output = tf.reduce_sum(concatenated_outputs, 1)
+        
+        elif output == "all_outputs":
+            rnn_output = tf.concat(2, [rnn_output[0], rnn_output[1]])
+            
+        else:
+            assert False
+
+        return rnn_output
 
 
     def get_command_lens(self, commands):

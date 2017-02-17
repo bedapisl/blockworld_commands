@@ -243,7 +243,8 @@ def load_best_result(run_id):
 def load_model(args, run_id):
     model = Network(args["network_type"], hidden_dimension = args["hidden_dimension"], run_id = run_id, learning_rate = args["learning_rate"], target = args["target"],
                         rnn_cell_dim = args["rnn_cell_dim"], rnn_cell_type = args["rnn_cell_type"], bidirectional = args["bidirectional"], use_world = args["use_world"], 
-                        dropout_input = args["dropout_input"], dropout_output = args["dropout_output"], embeddings = args["embeddings"], version = args["version"], threads = 1)
+                        dropout_input = args["dropout_input"], dropout_output = args["dropout_output"], embeddings = args["embeddings"], version = args["version"], 
+                        use_tags = args["use_tags"], rnn_output = args["rnn_output"], hidden_layers = args["hidden_layers"], threads = 1)
 
     checkpoint = tf.train.get_checkpoint_state("checkpoints/" + str(run_id))
     model.saver.restore(model.session, checkpoint.model_checkpoint_path)
@@ -253,7 +254,8 @@ def load_model(args, run_id):
 def test_model(run_id):
     args = load_args(run_id)
     model = load_model(args, run_id)
-    test_results = evaluate(model, dataset, epoch)
+    dataset = Dataset("test", args["version"])
+    test_results = evaluate(model, dataset, args["epoch"])
     print_results(test_results)
 
     if test_results[0] != None:
@@ -261,6 +263,7 @@ def test_model(run_id):
     else:
         test_result = test_results[1]
 
+    db = Database()
     db.execute("UPDATE Results SET TestResult = " + str(test_result) + " WHERE RunID = " + str(run_id))
 
 
@@ -288,7 +291,7 @@ def parse_arguments():
     parser.add_argument("--continue_training", default=-1, type=int, help="Load model with given ID and continue training")
     parser.add_argument("--create_images", default=-1, type=int, help="Load model with given id and create images based on models predictions")
     parser.add_argument("--use_tags", default=False, type=bool, help="Whether use tags (Noun, Verb) as part of input to model")
-    parser.add_argument("--rnn_output", default="last_state", choices = ["last_state", "all_outputs", "all_outputs_hidden"], type=str, help="How and what output of rnn will be used")
+    parser.add_argument("--rnn_output", default="last_state", choices = ["last_state", "all_outputs", "direct_last_state"], type=str, help="How and what output of rnn will be used")
     parser.add_argument("--hidden_layers", default=1, type=int, help="Number of hidden layers in the middle part of network")
 
     args = parser.parse_args()
