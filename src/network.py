@@ -5,6 +5,7 @@ import numpy as np
 import pdb
 from utils import get_embedding_matrix, get_word_characters, vocabulary_length
 
+
 class Network:
     def __init__(self, network_type, run_id, learning_rate, target, rnn_cell_type, rnn_cell_dim, bidirectional, hidden_dimension, 
                             use_world, dropout_input, dropout_output, embeddings, version, threads, use_tags, rnn_output, hidden_layers, world_dimension = 2):
@@ -84,7 +85,7 @@ class Network:
                 self.one_hot_words = tf.nn.dropout(self.embedded_words, 1.0 - self.dropout_input_tensor)
             
 
-            ############################## HIDDEN LAYER #############################
+            ############################## HIDDEN LAYERS #############################
             if network_type == "rnn":
                
                 #if bidirectional:
@@ -111,33 +112,8 @@ class Network:
                     
                     self.reference = self.rnn_layers(last_rnn_input, self.command_lens, rnn_cell_type, 20, 1, "last_state_sum")
                     self.location_by_direction = self.rnn_layers(last_rnn_input, self.command_lens, rnn_cell_type, world_dimension, 1, "last_state_sum")
+                    self.logits = self.rnn_layers(last_rnn_input, self.command_lens, rnn_cell_type, 20, 1, "last_state_sum")
                 
-#                elif rnn_output == "all_outputs_hidden":
-#                    self.concatenated_outputs = tf.concat(2, [self.bidirectional_rnn_output[0], self.bidirectional_rnn_output[1]])      
-#                    self.flattened_concatenated_rnn_outputs = tf.reshape(self.concatenated_outputs, [-1, rnn_cell_dim * 2])         #bidirectional -> * 2
-#                    self.rnn_output_hidden_layer = tf.contrib.layers.fully_connected(self.flattened_concatenated_rnn_outputs, num_outputs = rnn_cell_dim, activation_fn = tf.nn.relu)
-#                    self.reshaped_rnn_output_hidden_layer = tf.reshape(self.rnn_output_hidden_layer, [-1, max_command_len, rnn_cell_dim])
-#                    self.rnn_output = tf.reduce_sum(self.reshaped_rnn_output_hidden_layer, 1)
-#
-#                elif rnn_output == "direct_last_state":
-#                    _, self.bidirectional_rnn_state = tf.nn.bidirectional_dynamic_rnn(rnn_cell, rnn_cell, self.rnn_input, se
-#
-#                    self.reference = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = 20, activation_fn = None)
-#                    self.reference_stacked = tf.stack([self.reference] * world_dimension, axis=2)   #[batch, 20, world_dimension]
-#                    self.world_reshaped = tf.reshape(self.world, [-1, 20, world_dimension])
-#                    self.multiple = tf.multiply(self.reference_stacked, self.world_reshaped)
-#                    self.location_by_reference = tf.reduce_sum(self.multiple, axis = 1)
-#
-#                    self.location_by_direction = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = world_dimension, activation_fn = None)
-#                    self.predicted_location = tf.add(self.location_by_reference, self.location_by_direction)
-#
-#
-#                else:
-#                    if rnn_cell_type == "LSTM":
-#                        _, self.rnn_output_lstm_tuple = tf.nn.dynamic_rnn(rnn_cell, self.one_hot_words, sequence_length = self.command_lens)
-#                        self.rnn_output = self.rnn_output_lstm_tuple.c
-#                    else:
-#                        _, self.rnn_output = tf.nn.dynamic_rnn(rnn_cell, self.one_hot_words, sequence_length = self.command_lens)
                 
                 if use_world:
                     self.world_and_word = tf.concat(1, [self.world, self.rnn_output])
@@ -165,7 +141,8 @@ class Network:
             ################################### OUTPUT LAYER #########################
 
             if target == "source":
-                self.logits = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = 20, activation_fn = None)
+                if rnn_output != "direct_last_state":
+                    self.logits = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = 20, activation_fn = None)
                 self.predicted_source = tf.argmax(self.logits, 1)
                 self.accuracy = tf.contrib.metrics.accuracy(tf.to_int32(self.predicted_source), self.source)
                 self.loss = tf.nn.sparse_softmax_cross_entropy_with_logits(self.logits, self.source)
