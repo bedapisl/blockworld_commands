@@ -6,9 +6,10 @@ from setting import digits, logos, directions, compass_directions
 
 
 class BenchmarkModel:
-    def __init__(self, version, dimension = 2):
+    def __init__(self, version, target, dimension = 2):
         db = Database()
         
+        self.target = target
         self.version = version
         self.dimension = dimension
         self.block_names = []
@@ -18,6 +19,7 @@ class BenchmarkModel:
             self.block_names.append([])
             self.block_names[i].append(self.get_word_id(digit, db))
             self.block_names[i].append(self.get_word_id(str(i + 1), db))
+            self.block_names[i].append(self.get_word_id(logos[i].replace(" ", ""), db))
             for logo_part in logos[i].split():
                 self.block_names[i].append(self.get_word_id(logo_part, db))
         
@@ -35,16 +37,20 @@ class BenchmarkModel:
         return -1
 
     
-    def predict(self, commands, worlds, correct_source, correct_location, tags, dataset, raw_commands):
+    def predict(self, commands, worlds, correct_source, correct_location, tags, dataset):#, raw_commands):
         correct_source = None
         correct_location = None
         dataset = None
         sources = []
         locations = []
 
-        number_of_blocks = [0] * 20
+        #number_of_blocks = [0] * 20
+        
+        #pdb.set_trace()
 
         for k, (command, world) in enumerate(zip(commands, worlds)):
+        #    print(raw_commands[k])
+
             converted_world = []
             for i in range(0, len(world), self.dimension):
                 converted_world.append([])
@@ -64,10 +70,14 @@ class BenchmarkModel:
                     if word in direction_names:
                         directions_in_command.append(direction_id)
             
-            number_of_blocks[len(set(blocks_in_command))] += 1
-            if len(set(blocks_in_command)) >= 3:
-                print(len(set(blocks_in_command)))
-                print(raw_commands[k])
+            #print(blocks_in_command)
+            #pdb.set_trace()
+
+            #number_of_blocks[len(set(blocks_in_command))] += 1
+            #if len(set(blocks_in_command)) >= 3:
+            #    pass
+                #print(len(set(blocks_in_command)))
+                #print(raw_commands[k])
  
             if len(blocks_in_command) == 0:     #no block in command -> no change in world
                 sources.append(0)               
@@ -105,8 +115,13 @@ class BenchmarkModel:
             #pdb.set_trace()
         
         #locations = [item for sublist in locations for item in sublist]     #flatten locations
-        print(number_of_blocks)
-        return sources, locations
+        #print(number_of_blocks)
+        if self.target == "source":
+            return sources, None
+        elif self.target == "location":
+            return None, locations
+        
+        assert False
 
 
     def train(self, command, world, source_id, location, tags):

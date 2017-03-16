@@ -72,6 +72,13 @@ class Drawer:
         return canvas
     
 
+    def get_image(self, world, logos, moved_block = -1):
+        canvas = Image.new('RGBA', (800, 800), background_color)
+        draw = PIL.ImageDraw.Draw(canvas)
+        canvas = self.draw_world(canvas, world, logos, [0, 0], highlight = moved_block)
+        return canvas
+ 
+
     def save_image(self, command, world_before, world_after, logos, other_info, file_name, correct_location = None, moved_block = -1):
         canvas = Image.new('RGBA', (image_size, int(image_size / 2) + 200), background_color)
 

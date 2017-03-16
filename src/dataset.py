@@ -8,20 +8,29 @@ from setting import max_command_len, all_tags
 
 
 class Dataset:
-    def __init__(self, dataset, version, shuffle = True, dimension = 2, seed = 42):
+    def __init__(self, dataset, version, shuffle = True, dimension = 2, seed = 42, specific_command = None):
         random.seed(seed)
         self.version = version
-        self.instance_id = 0
         self.dataset_name = dataset
 
         db = Database()
 
-        data = db.get_all_rows("""SELECT ModelInput.Command, WorldBefore, Source, Location, RawCommand, Decoration = 'logo', ModelInput.CommandID, Tags, Tokenized
-                                    FROM ModelInput 
-                                    JOIN Command ON Command.CommandID = ModelInput.CommandID
-                                    JOIN Configuration ON Command.ConfigurationID = Configuration.ConfigurationID
-                                    WHERE ModelInput.Dataset = '""" 
-                                    + str(dataset) + "' AND Version = " + str(version) + " ORDER BY ModelInput.CommandID")
+        if specific_command is None:
+            data = db.get_all_rows("""SELECT ModelInput.Command, WorldBefore, Source, Location, RawCommand, Decoration = 'logo', ModelInput.CommandID, Tags, Tokenized
+                                        FROM ModelInput 
+                                        JOIN Command ON Command.CommandID = ModelInput.CommandID
+                                        JOIN Configuration ON Command.ConfigurationID = Configuration.ConfigurationID
+                                        WHERE ModelInput.Dataset = '""" 
+                                        + str(dataset) + "' AND Version = " + str(version) + " ORDER BY ModelInput.CommandID")
+        else:
+            data = db.get_all_rows("""SELECT ModelInput.Command, WorldBefore, Source, Location, RawCommand, Decoration = 'logo', ModelInput.CommandID, Tags, Tokenized
+                                        FROM ModelInput 
+                                        JOIN Command ON Command.CommandID = ModelInput.CommandID
+                                        JOIN Configuration ON Command.ConfigurationID = Configuration.ConfigurationID
+                                        WHERE ModelInput.CommandID = '""" 
+                                        + str(specific_command) + "' AND Version = " + str(version))
+
+
 
         if shuffle:
             random.shuffle(data)       

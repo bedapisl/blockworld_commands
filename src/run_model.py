@@ -15,6 +15,7 @@ import os.path
 import ast
 from drawer import Drawer
 from setting import logos
+from utils import convert_world
 
 
 def evaluate(model, dataset, epoch, dimension = 2):
@@ -67,11 +68,8 @@ def create_images(run_id):
         predicting_source = True
 
     for i in range(0, len(predicted_locations)):
-        world_before = []
-        for j in range(0, len(worlds[i]), 2):
-            world_before.append((worlds[i][j], worlds[i][j + 1]))
-        
-        world_after = copy.deepcopy(world_before)
+        world_before = convert_world(worlds[i])
+        world_after = convert_world(worlds[i])
         world_after[predicted_sources[i]] = predicted_locations[i]
 
         result = ""
@@ -241,6 +239,10 @@ def load_best_result(run_id):
 
 
 def load_model(args, run_id):
+    if args["network_type"] == "benchmark":
+        model = BenchmarkModel(args["version"], target = args["target"])
+        return model
+
     model = Network(args["network_type"], hidden_dimension = args["hidden_dimension"], run_id = run_id, learning_rate = args["learning_rate"], target = args["target"],
                         rnn_cell_dim = args["rnn_cell_dim"], rnn_cell_type = args["rnn_cell_type"], bidirectional = args["bidirectional"], use_world = args["use_world"], 
                         dropout_input = args["dropout_input"], dropout_output = args["dropout_output"], embeddings = args["embeddings"], version = args["version"], 
@@ -277,8 +279,8 @@ def parse_arguments():
     parser.add_argument("--hidden_dimension", default=128, type=int, help="Number of neurons in last hidden layer")
     parser.add_argument("--threads", default=1, type=int, help="Maximum number of threads to use")
     parser.add_argument("--learning_rate", default=0.01, type=float, help="Learning rate")
-    parser.add_argument("--rnn_cell_dim", default=512, type=int, help="Dimension of rnn cells.")
-    parser.add_argument("--rnn_cell_type", default="GRU", type=str, choices=["LSTM", "GRU"], help="Type of rnn cell")
+    parser.add_argument("--rnn_cell_dim", default=128, type=int, help="Dimension of rnn cells.")
+    parser.add_argument("--rnn_cell_type", default="LSTM", type=str, choices=["LSTM", "GRU"], help="Type of rnn cell")
     parser.add_argument("--bidirectional", default=True, type=bool, help="Whether the RNN network is bidirectional")
     parser.add_argument("--target", default="location", type=str, choices=["source", "location"], help="Whether model should predict which block will be moved (source) or where it will be moved (location)")
     parser.add_argument("--test", default=False, type=bool, help="Test trained model on testing data")
@@ -334,7 +336,7 @@ def main():
                             rnn_output = args["rnn_output"], hidden_layers = args["hidden_layers"])
 
         elif args["model"] in ["benchmark"]:
-            model = BenchmarkModel(args["version"])
+            model = BenchmarkModel(args["version"], target = args["target"])
     
     else:
         run_id = args["continue_training"]
@@ -389,7 +391,7 @@ def main():
     save(run_id, args, best_results, test_results, start_time)
 
 
-
-main()       
+if __name__ == "__main__":
+    main()       
             
  

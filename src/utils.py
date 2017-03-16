@@ -81,3 +81,10 @@ def get_word_characters(vocabulary_version):
     return (matrix, len(all_letters), word_lens)
 
 
+def convert_world(world):
+    new_world = []
+    for j in range(0, len(world), 2):
+        new_world.append((world[j], world[j + 1]))
+
+    return new_world
+   

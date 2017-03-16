@@ -16,7 +16,7 @@ class Network:
         self.rnn_layers_created = 0
 
         graph = tf.Graph()
-        graph.seed = 42
+        graph.seed = 100
         self.session = tf.Session(graph = graph, config = tf.ConfigProto(inter_op_parallelism_threads = threads, intra_op_parallelism_threads = threads))
 
         self.summary_writer = tf.summary.FileWriter("logs/" + str(run_id) + "_" + target + "_" + network_type, flush_secs=10)
@@ -84,51 +84,63 @@ class Network:
             else:
                 self.one_hot_words = tf.nn.dropout(self.embedded_words, 1.0 - self.dropout_input_tensor)
             
-
+            
             ############################## HIDDEN LAYERS #############################
             if network_type == "rnn":
                
-                #if bidirectional:
-                #    self.rnn_input = self.one_hot_words
-                    #self.bidirectional_rnn_output, self.bidirectional_rnn_state = tf.nn.bidirectional_dynamic_rnn(rnn_cell, rnn_cell, self.one_hot_words, sequence_length = self.command_lens, dtype = tf.float32, scope = "hidden_layer_0")
-
-                #    for i in range(0, hidden_layers):
-                        #self.previous_state = tf.concat(1, [self.bidirectional_rnn_output[0], self.bidirectional_rnn_output[1]])
-                #        self.bidirectional_rnn_output, self.bidirectional_rnn_state = tf.nn.bidirectional_dynamic_rnn(rnn_cell, rnn_cell, self.rnn_input, sequence_length = self.command_lens, dtype = tf.float32, scope = "hidden_layer_" + str(i))
-                #        self.rnn_input = tf.concat(2, [self.bidirectional_rnn_output[0], self.bidirectional_rnn_output[1]])
                 self.rnn_input = self.one_hot_words
-                 
-                if rnn_output == "last_state":
-                    self.hidden_layer = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, rnn_cell_dim, hidden_layers, "last_state")
-                
-                elif rnn_output == "output":
-                    self.hidden_layer = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, rnn_cell_dim, hidden_layers, "output_sum")
-                
-                elif rnn_output == "direct_last_state":
-                    if hidden_layers > 1:
-                        last_rnn_input = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, rnn_cell_dim, hidden_layers - 1, "all_outputs")
-                    else:
-                        last_rnn_input = self.rnn_input
-                    
-                    self.reference = self.rnn_layers(last_rnn_input, self.command_lens, rnn_cell_type, 20, 1, "last_state_sum")
-                    self.location_by_direction = self.rnn_layers(last_rnn_input, self.command_lens, rnn_cell_type, world_dimension, 1, "last_state_sum")
-                    self.logits = self.rnn_layers(last_rnn_input, self.command_lens, rnn_cell_type, 20, 1, "last_state_sum")
-                
-                
+
                 if use_world:
-                    self.world_and_word = tf.concat(1, [self.world, self.rnn_output])
-                    self.hidden_layer = tf.contrib.layers.fully_connected(self.world_and_word, num_outputs = hidden_dimension, activation_fn = tf.nn.relu)
+                    #TODO: add world to each word
+                    pass
+                
+                if hidden_layers > 1:
+                    self.rnn_input = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, rnn_cell_dim, hidden_layers - 1, "all_outputs")
+                    self.rnn_input = tf.nn.dropout(self.rnn_input, 1.0 - self.dropout_output_tensor)
+                
+                if rnn_output in ["last_state", "output_sum"]:
+                    if rnn_output == "last_state":
+                        self.hidden_layer = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, rnn_cell_dim, 1, "last_state")
+                    
+                    elif rnn_output == "output_sum":
+                        self.hidden_layer = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, rnn_cell_dim, 1, "output_sum")
+                    
+                    self.hidden_layer = tf.nn.dropout(self.hidden_layer, 1.0 - self.dropout_output_tensor)
+
+                    self.reference = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = 20, activation_fn = None)
+                    self.location_by_direction = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = world_dimension, activation_fn = None)
+                    self.logits = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = 20, activation_fn = None)
+                
+                elif rnn_output in ["direct_last_state", "direct_output_sum"]:
+                    if rnn_output == "direct_last_state":
+                        output_type = "last_state_sum"
+                    elif rnn_output == "direct_output_sum":
+                        output_type = "output_sum"
+                    
+                    self.reference = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, 20, 1, output_type)
+                    self.location_by_direction = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, world_dimension, 1, output_type)
+                    self.logits = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, 20, 1, output_type)
+                
+#                if use_world:
+#                    if rnn_output in ["last_state", "output_sum"]:
+#                        self.world_and_word = tf.concat(1, [self.world, self.hidden_layer])
+#                        self.hidden_layer = tf.contrib.layers.fully_connected(self.world_and_word, num_outputs = hidden_dimension, activation_fn = tf.nn.relu)
                 #else:
                 #    self.hidden_layer = self.rnn_output
             
             elif network_type == "ffn":
-                self.flattened_one_hot_words = tf.cast(tf.contrib.layers.flatten(self.one_hot_words), tf.float32)
-                if use_world:
-                    self.all_inputs = tf.concat(concat_dim = 1, values = [self.world, self.flattened_one_hot_words])
-                    self.hidden_layer = tf.contrib.layers.fully_connected(self.all_inputs, num_outputs = hidden_dimension, activation_fn = tf.nn.relu)
-                else:
-                    self.hidden_layer = tf.contrib.layers.fully_connected(self.flattened_one_hot_words, num_outputs = hidden_dimension, activation_fn = tf.nn.relu)
+                self.ffn_input = tf.cast(tf.contrib.layers.flatten(self.one_hot_words), tf.float32)
 
+                if use_world:
+                    self.ffn_input = tf.concat(concat_dim = 1, values = [self.world, self.ffn_input])
+
+                for i in range(hidden_layers):
+                    self.ffn_input = tf.contrib.layers.fully_connected(self.ffn_input, num_outputs = hidden_dimension, activation_fn = tf.nn.relu)
+
+                self.reference = tf.contrib.layers.fully_connected(self.ffn_input, num_outputs = 20, activation_fn = None)
+                self.location_by_direction = tf.contrib.layers.fully_connected(self.ffn_input, num_outputs = world_dimension, activation_fn = None)
+                self.logits = tf.contrib.layers.fully_connected(self.ffn_input, num_outputs = 20, activation_fn = None)
+                
             else:
                 print(network_type)
                 assert False
@@ -141,26 +153,27 @@ class Network:
             ################################### OUTPUT LAYER #########################
 
             if target == "source":
-                if rnn_output != "direct_last_state":
-                    self.logits = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = 20, activation_fn = None)
+                #if rnn_output != "direct_last_state":
+                #    self.logits = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = 20, activation_fn = None)
                 self.predicted_source = tf.argmax(self.logits, 1)
                 self.accuracy = tf.contrib.metrics.accuracy(tf.to_int32(self.predicted_source), self.source)
                 self.loss = tf.nn.sparse_softmax_cross_entropy_with_logits(self.logits, self.source)
 
             elif target == "location":
                 if use_world:
-                    self.predicted_location = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = world_dimension, activation_fn = None)
+                    #self.predicted_location = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = world_dimension, activation_fn = None)
+                    self.predicted_location = self.location_by_direction
                 else:
-                    if rnn_output != "direct_last_state":
-                        self.reference = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = 20, activation_fn = None)
+                    #if rnn_output != "direct_last_state":
+                    #    self.reference = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = 20, activation_fn = None)
                     
                     self.reference_stacked = tf.stack([self.reference] * world_dimension, axis=2)   #[batch, 20, world_dimension]
                     self.world_reshaped = tf.reshape(self.world, [-1, 20, world_dimension])
                     self.multiple = tf.multiply(self.reference_stacked, self.world_reshaped)
                     self.location_by_reference = tf.reduce_sum(self.multiple, axis = 1)
                     
-                    if rnn_output != "direct_last_state":
-                        self.location_by_direction = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = world_dimension, activation_fn = None)
+                    #if rnn_output != "direct_last_state":
+                    #    self.location_by_direction = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = world_dimension, activation_fn = None)
                     self.predicted_location = tf.add(self.location_by_reference, self.location_by_direction)
 
                 self.average_distance = tf.reduce_mean(tf.sqrt(tf.reduce_sum(tf.square(self.location - self.predicted_location), axis = 1)))
@@ -212,7 +225,7 @@ class Network:
             else:
                 rnn_output = tf.concat(1, rnn_state)
         
-        elif output == "last_state_sum":
+        elif output == "last_state_sum":                #sum both bidirectional last states
             if rnn_cell_type == "LSTM":
                 rnn_output = tf.reduce_sum([rnn_state[0].c, rnn_state[1].c], 0)
             else:
@@ -250,23 +263,28 @@ class Network:
         assert False
 
 
-    def predict(self, commands, world, source_id, location, tags, dataset):
+    def predict(self, commands, world, source_id, location, tags, dataset, generate_summary = True):
         predicted_location = None
         predicted_source = None
         feed_dict = {self.command : commands, self.command_lens : self.get_command_lens(commands), self.world : world, self.source : source_id, self.location : location,
                             self.dropout_input_tensor : 0.0, self.dropout_output_tensor : 0.0, self.dropout_input_multiplier : 1.0 - self.dropout_input, 
                             self.dropout_output_multiplier : 1.0 - self.dropout_output, self.tags : tags}
 
-        if self.target == "location":
-            predicted_location, summary = self.session.run([self.predicted_location, self.select_summary(dataset)], feed_dict)
+        if generate_summary:
+            if self.target == "location":
+                predicted_location, summary = self.session.run([self.predicted_location, self.select_summary(dataset)], feed_dict)
 
-        elif self.target == "source":
-            predicted_source, summary = self.session.run([self.predicted_source, self.select_summary(dataset)], feed_dict)
+            elif self.target == "source":
+                predicted_source, summary = self.session.run([self.predicted_source, self.select_summary(dataset)], feed_dict)
 
+            self.summary_writer.add_summary(summary)
+        
         else:
-            assert False
+            if self.target == "location":
+                predicted_location = self.session.run([self.predicted_location], feed_dict)
 
-        self.summary_writer.add_summary(summary)
+            elif self.target == "source":
+                predicted_source = self.session.run([self.predicted_source], feed_dict)
 
         return predicted_source, predicted_location
 

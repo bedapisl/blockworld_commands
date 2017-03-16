@@ -53,18 +53,28 @@ def main():
 
     configuration_id = 0
 
+
     for dataset in sets:
+        users = []
         data = []
         filename = data_dir + "/" + dataset + datasets_filename
         with gzip.open(filename, "rb") as input_file:
             for line in input_file.readlines():
                 json_data = json.loads(line.decode("ascii"))
-                db.insert("Configuration", [configuration_id, dataset, json_data["decoration"]])
-                load_configuration_commands(json_data, configuration_id, db)
-                load_configuration_world(json_data, configuration_id, db)
-                configuration_id += 1
+
+                for i in range(len(json_data["notes"])):
+                    if json_data["notes"][i]["type"] == "A0":
+                        users += json_data["notes"][i]["users"]
+
                 
-    db.commit()            
+                #db.insert("Configuration", [configuration_id, dataset, json_data["decoration"]])
+                #load_configuration_commands(json_data, configuration_id, db)
+                #load_configuration_world(json_data, configuration_id, db)
+                #configuration_id += 1
+     
+        pdb.set_trace()
+
+    #db.commit()            
     
 
 main()
