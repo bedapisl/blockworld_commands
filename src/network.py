@@ -8,7 +8,8 @@ from utils import get_embedding_matrix, get_word_characters, vocabulary_length
 
 class Network:
     def __init__(self, network_type, run_id, learning_rate, target, rnn_cell_type, rnn_cell_dim, bidirectional, hidden_dimension, 
-                            use_world, dropout_input, dropout_output, embeddings, version, threads, use_tags, rnn_output, hidden_layers, world_dimension = 2):
+                            use_world, dropout_input, dropout_output, embeddings, version, threads, use_tags, rnn_output, hidden_layers, 
+                            use_logos, seed, world_dimension = 2):
         self.target = target
         self.dropout_input = dropout_input
         self.dropout_output = dropout_output
@@ -16,7 +17,7 @@ class Network:
         self.rnn_layers_created = 0
 
         graph = tf.Graph()
-        graph.seed = 100
+        graph.seed = seed
         self.session = tf.Session(graph = graph, config = tf.ConfigProto(inter_op_parallelism_threads = threads, intra_op_parallelism_threads = threads))
 
         self.summary_writer = tf.summary.FileWriter("logs/" + str(run_id) + "_" + target + "_" + network_type, flush_secs=10)
@@ -91,8 +92,8 @@ class Network:
                 self.rnn_input = self.one_hot_words
 
                 if use_world:
-                    #TODO: add world to each word
-                    pass
+                    world_multiple_times = tf.reshape(tf.tile(self.world, [1, max_command_len]), [-1, max_command_len, 20 * world_dimension])
+                    self.rnn_input = tf.concat(2, [self.rnn_input, world_multiple_times])
                 
                 if hidden_layers > 1:
                     self.rnn_input = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, rnn_cell_dim, hidden_layers - 1, "all_outputs")
@@ -120,14 +121,7 @@ class Network:
                     self.reference = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, 20, 1, output_type)
                     self.location_by_direction = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, world_dimension, 1, output_type)
                     self.logits = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, 20, 1, output_type)
-                
-#                if use_world:
-#                    if rnn_output in ["last_state", "output_sum"]:
-#                        self.world_and_word = tf.concat(1, [self.world, self.hidden_layer])
-#                        self.hidden_layer = tf.contrib.layers.fully_connected(self.world_and_word, num_outputs = hidden_dimension, activation_fn = tf.nn.relu)
-                #else:
-                #    self.hidden_layer = self.rnn_output
-            
+                           
             elif network_type == "ffn":
                 self.ffn_input = tf.cast(tf.contrib.layers.flatten(self.one_hot_words), tf.float32)
 
@@ -145,40 +139,30 @@ class Network:
                 print(network_type)
                 assert False
             
-            ################################### DROPOUT OUTPUT ########################
-
-            #self.hidden_layer = tf.scalar_mul(self.dropout_output_multiplier, tf.nn.dropout(self.hidden_layer, 1.0 - self.dropout_output_tensor))
-            #self.hidden_layer = tf.nn.dropout(self.hidden_layer, 1.0 - self.dropout_output_tensor)
-            
             ################################### OUTPUT LAYER #########################
 
             if target == "source":
-                #if rnn_output != "direct_last_state":
-                #    self.logits = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = 20, activation_fn = None)
                 self.predicted_source = tf.argmax(self.logits, 1)
                 self.accuracy = tf.contrib.metrics.accuracy(tf.to_int32(self.predicted_source), self.source)
                 self.loss = tf.nn.sparse_softmax_cross_entropy_with_logits(self.logits, self.source)
 
             elif target == "location":
                 if use_world:
-                    #self.predicted_location = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = world_dimension, activation_fn = None)
                     self.predicted_location = self.location_by_direction
                 else:
-                    #if rnn_output != "direct_last_state":
-                    #    self.reference = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = 20, activation_fn = None)
-                    
                     self.reference_stacked = tf.stack([self.reference] * world_dimension, axis=2)   #[batch, 20, world_dimension]
                     self.world_reshaped = tf.reshape(self.world, [-1, 20, world_dimension])
                     self.multiple = tf.multiply(self.reference_stacked, self.world_reshaped)
                     self.location_by_reference = tf.reduce_sum(self.multiple, axis = 1)
                     
-                    #if rnn_output != "direct_last_state":
-                    #    self.location_by_direction = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = world_dimension, activation_fn = None)
                     self.predicted_location = tf.add(self.location_by_reference, self.location_by_direction)
 
                 self.average_distance = tf.reduce_mean(tf.sqrt(tf.reduce_sum(tf.square(self.location - self.predicted_location), axis = 1)))
                 self.loss = self.average_distance
-            
+             
+            #    if round_location:
+            #        self.predicted_location = tf.scalar_mul(1.0936, tf.round(tf.scalar_mul(1.0 / 1.0936, self.predicted_location)))
+
             else:
                 print(target)
                 assert False

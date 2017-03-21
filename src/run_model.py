@@ -141,11 +141,11 @@ def save(run_id, args, dev_result, test_result, start_time):
     seconds = (time.time() - start_time) * args["threads"]
     computation_time = str(int(seconds / 3600)) + ":" + str(int(seconds / 60) % 60)
 
-    db_cols = ["run_id", "target", "model", "version", "dev_result", "test_result", "epoch", "hidden_dimension", "learning_rate", "rnn_cell_dim", "rnn_cell_type", "bidirectional", "dropout_input", "dropout_output", "batch_size", "use_world", "embeddings", "computation_time", "args"]
+    db_cols = ["run_id", "target", "model", "version", "dev_result", "test_result", "epoch", "hidden_dimension", "learning_rate", "rnn_cell_dim", "rnn_cell_type", "bidirectional", "dropout_input", "dropout_output", "batch_size", "use_world", "embeddings", "hidden_layers", "rnn_output", "use_tags", "use_logos", "seed", "computation_time", "args"]
     
     args_to_delete = ["max_epochs", "test", "restore_and_test", "threads", "stop", "create_images", "continue_training"]
     if args["model"] == "ffn":
-        args_to_delete += ["rnn_cell_type", "rnn_cell_dim", "bidirectional"]
+        args_to_delete += ["rnn_cell_type", "rnn_cell_dim", "bidirectional", "rnn_output"]
     
     for to_delete in args_to_delete:
         if to_delete in args.keys():
@@ -215,6 +215,11 @@ def load_args(run_id):
     args["batch_size"] = row[14]
     args["use_world"] = to_bool(row[15])
     args["embeddings"] = row[16]
+    args["hidden_layers"] = row[17]
+    args["rnn_output"] = row[18]
+    args["use_tags"] = to_bool(row[19])
+    args["use_logos"] = to_bool(row[20])
+    args["seed"] = row[21]
 
     if args["network_type"] == "ffn":
         args["rnn_cell_type"] = 'GRU'
@@ -246,7 +251,8 @@ def load_model(args, run_id):
     model = Network(args["network_type"], hidden_dimension = args["hidden_dimension"], run_id = run_id, learning_rate = args["learning_rate"], target = args["target"],
                         rnn_cell_dim = args["rnn_cell_dim"], rnn_cell_type = args["rnn_cell_type"], bidirectional = args["bidirectional"], use_world = args["use_world"], 
                         dropout_input = args["dropout_input"], dropout_output = args["dropout_output"], embeddings = args["embeddings"], version = args["version"], 
-                        use_tags = args["use_tags"], rnn_output = args["rnn_output"], hidden_layers = args["hidden_layers"], threads = 1)
+                        use_tags = args["use_tags"], rnn_output = args["rnn_output"], hidden_layers = args["hidden_layers"], use_logos = args["use_logos"], seed = args["seed"],
+                        threads = 1)
 
     checkpoint = tf.train.get_checkpoint_state("checkpoints/" + str(run_id))
     model.saver.restore(model.session, checkpoint.model_checkpoint_path)
@@ -295,6 +301,9 @@ def parse_arguments():
     parser.add_argument("--use_tags", default=False, type=bool, help="Whether use tags (Noun, Verb) as part of input to model")
     parser.add_argument("--rnn_output", default="last_state", choices = ["last_state", "all_outputs", "direct_last_state"], type=str, help="How and what output of rnn will be used")
     parser.add_argument("--hidden_layers", default=1, type=int, help="Number of hidden layers in the middle part of network")
+    parser.add_argument("--use_logos", default=False, type=bool, help="Whether use logos as part of input to model")
+    parser.add_argument("--seed", default=42, type=int, help="Random seed")
+
 
     args = parser.parse_args()
     args = vars(args)
@@ -303,9 +312,8 @@ def parse_arguments():
 
 
 def main():
-    random.seed(42)
-
     args = parse_arguments()
+    random.seed(args["seed"])
     
     if args["restore_and_test"] != -1:
         test_model(args["restore_and_test"])
@@ -333,7 +341,7 @@ def main():
             model = Network(args["model"], hidden_dimension = args["hidden_dimension"], run_id = run_id, learning_rate = args["learning_rate"], target = args["target"],
                             rnn_cell_dim = args["rnn_cell_dim"], rnn_cell_type = args["rnn_cell_type"], bidirectional = args["bidirectional"], threads = args["threads"], use_world = args["use_world"],
                             dropout_input = args["dropout_input"], dropout_output = args["dropout_output"], embeddings = args["embeddings"], version = args["version"], use_tags = args["use_tags"],
-                            rnn_output = args["rnn_output"], hidden_layers = args["hidden_layers"])
+                            rnn_output = args["rnn_output"], hidden_layers = args["hidden_layers"], use_logos = args["use_logos"], seed = args["seed"])
 
         elif args["model"] in ["benchmark"]:
             model = BenchmarkModel(args["version"], target = args["target"])
