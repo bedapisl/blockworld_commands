@@ -1,8 +1,14 @@
-import pymysql.cursors
-import pdb
-import sqlite3
 
-database_type = "sqlite"
+import pdb
+
+database_type = "mysql"
+
+if database_type == "mysql":
+    import pymysql.cursors
+elif database_type == "sqlite":
+    import sqlite3
+
+
 
 #MYSQL config
 user = 'beda'
@@ -33,7 +39,10 @@ class Database:
 
 
     def execute(self, command, values = None):
-        self.cursor.execute(command, values)
+        if values == None:
+            self.cursor.execute(command)
+        else:
+            self.cursor.execute(command, values)
         self.commit()
 
 
