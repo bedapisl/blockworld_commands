@@ -23,14 +23,14 @@ class Network:
         self.summary_writer = tf.summary.FileWriter("logs/" + str(run_id) + "_" + target + "_" + network_type, flush_secs=10)
 
         with self.session.graph.as_default():
-            if rnn_cell_type == "LSTM":
-                rnn_cell = tf.nn.rnn_cell.LSTMCell(rnn_cell_dim)
-
-            elif rnn_cell_type == "GRU":
-                rnn_cell = tf.nn.rnn_cell.GRUCell(rnn_cell_dim)
-
-            else:
-                raise ValueError("RNN cell type must be 'LSTM' or 'GRU'")
+#            if rnn_cell_type == "LSTM":
+#                rnn_cell = tf.contrib.rnn.LSTMCell(rnn_cell_dim)
+#
+#            elif rnn_cell_type == "GRU":
+#                rnn_cell = tf.contrib.rnn.GRUCell(rnn_cell_dim)
+#
+#            else:
+#                raise ValueError("RNN cell type must be 'LSTM' or 'GRU'")
 
             self.command = tf.placeholder(tf.int32, [None, max_command_len])          #[batch, sentence_length]
             self.command_lens = tf.placeholder(tf.int32, [None])
@@ -58,7 +58,7 @@ class Network:
                 self.embedded_words = tf.gather(self.embeddings, self.command)
 
             elif embeddings == "character":
-                char_rnn_cell = tf.nn.rnn_cell.GRUCell(embedding_dim)
+                char_rnn_cell = tf.contrib.rnn.GRUCell(embedding_dim)
                 word_to_chars, num_chars, word_lens = get_word_characters(version)
                 self.word_to_chars = tf.constant(word_to_chars)     # [number_of_words, max_word_len]
                 self.word_lens = tf.constant(word_lens)             # [number_of_words]
@@ -77,7 +77,7 @@ class Network:
                 tag_dim = 10
                 self.tag_embeddings = tf.Variable(tf.random_uniform([vocabulary_length(version), tag_dim], minval = -1, maxval = 1))
                 self.embedded_tags = tf.gather(self.tag_embeddings, self.tags)
-                self.embedded_words = tf.concat(2, [self.embedded_words, self.embedded_tags])
+                self.embedded_words = tf.concat(axis=2, values=[self.embedded_words, self.embedded_tags])
             
             ############################### DROPOUT INPUT ############################
             if target == "location":
@@ -93,7 +93,7 @@ class Network:
 
                 if use_world:
                     world_multiple_times = tf.reshape(tf.tile(self.world, [1, max_command_len]), [-1, max_command_len, 20 * world_dimension])
-                    self.rnn_input = tf.concat(2, [self.rnn_input, world_multiple_times])
+                    self.rnn_input = tf.concat(axis=2, values=[self.rnn_input, world_multiple_times])
                 
                 if hidden_layers > 1:
                     self.rnn_input = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, rnn_cell_dim, hidden_layers - 1, "all_outputs")
@@ -126,7 +126,7 @@ class Network:
                 self.ffn_input = tf.cast(tf.contrib.layers.flatten(self.one_hot_words), tf.float32)
 
                 if use_world:
-                    self.ffn_input = tf.concat(concat_dim = 1, values = [self.world, self.ffn_input])
+                    self.ffn_input = tf.concat(axis = 1, values = [self.world, self.ffn_input])
 
                 for i in range(hidden_layers):
                     self.ffn_input = tf.contrib.layers.fully_connected(self.ffn_input, num_outputs = hidden_dimension, activation_fn = tf.nn.relu)
@@ -144,7 +144,7 @@ class Network:
             if target == "source":
                 self.predicted_source = tf.argmax(self.logits, 1)
                 self.accuracy = tf.contrib.metrics.accuracy(tf.to_int32(self.predicted_source), self.source)
-                self.loss = tf.nn.sparse_softmax_cross_entropy_with_logits(self.logits, self.source)
+                self.loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.logits, labels=self.source)
 
             elif target == "location":
                 if use_world:
@@ -189,10 +189,10 @@ class Network:
         assert layers > 0
 
         if rnn_cell_type == "LSTM":
-            rnn_cell = tf.nn.rnn_cell.LSTMCell(rnn_cell_dim)
+            rnn_cell = tf.contrib.rnn.LSTMCell(rnn_cell_dim)
 
         elif rnn_cell_type == "GRU":
-            rnn_cell = tf.nn.rnn_cell.GRUCell(rnn_cell_dim)
+            rnn_cell = tf.contrib.rnn.GRUCell(rnn_cell_dim)
 
         else:
             raise ValueError("RNN cell type must be 'LSTM' or 'GRU'")
@@ -201,13 +201,13 @@ class Network:
             scope = "rnn_layer_" + str(self.rnn_layers_created)
             self.rnn_layers_created += 1
             rnn_output, rnn_state = tf.nn.bidirectional_dynamic_rnn(rnn_cell, rnn_cell, rnn_input, sequence_length = sequence_length, dtype = tf.float32, scope = scope)
-            rnn_input = tf.concat(2, [rnn_output[0], rnn_output[1]])
+            rnn_input = tf.concat(axis=2, values=[rnn_output[0], rnn_output[1]])
 
         if output == "last_state":
             if rnn_cell_type == "LSTM":
-                rnn_output = tf.concat(1, [rnn_state[0].c, rnn_state[1].c])
+                rnn_output = tf.concat(axis=1, values=[rnn_state[0].c, rnn_state[1].c])
             else:
-                rnn_output = tf.concat(1, rnn_state)
+                rnn_output = tf.concat(axis=1, values=rnn_state)
         
         elif output == "last_state_sum":                #sum both bidirectional last states
             if rnn_cell_type == "LSTM":
@@ -216,11 +216,11 @@ class Network:
                 rnn_output = tf.reduce_sum(rnn_state, 0)
 
         elif output == "output_sum":
-            concatenated_outputs = tf.concat(2, [rnn_output[0], rnn_output[1]])
+            concatenated_outputs = tf.concat(axis=2, values=[rnn_output[0], rnn_output[1]])
             rnn_output = tf.reduce_sum(concatenated_outputs, 1)
         
         elif output == "all_outputs":
-            rnn_output = tf.concat(2, [rnn_output[0], rnn_output[1]])
+            rnn_output = tf.concat(axis=2, values=[rnn_output[0], rnn_output[1]])
             
         else:
             assert False
