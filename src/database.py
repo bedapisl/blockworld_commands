@@ -2,7 +2,7 @@ import pymysql.cursors
 import pdb
 import sqlite3
 
-database_type = "mysql"
+database_type = "sqlite"
 
 #MYSQL config
 user = 'beda'
@@ -25,6 +25,7 @@ class Database:
         
         elif database_type == "sqlite":
             self.connection = sqlite3.connect(database_file)
+            self.connection.text_factory = lambda x : str(x, 'latin1')
             self.cursor = self.connection.cursor()
             self.substitution_string = "?"
 
