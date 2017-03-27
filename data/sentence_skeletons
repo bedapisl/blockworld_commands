@@ -1,0 +1,28 @@
+[move] [block] [block_name_1] [so] [upper_lower_1] [right_left_1] corner of [block] [block_name_2] touches [upper_lower_2] [right_left_2] corner of [block] [block_name_1]
+0 1.0
+[move] [block] [block_name_1] to [the] [upper_lower_1] [right_left_1] corner of [the] board 
+1 1.0
+[move] [block] [block_name_1] [number_1] [spaces] [up_down_1] and [number_2] [spaces] [right_left_1]
+2 1.0
+[move] [block] [block_name_1] [so] it is horizontally [aligned] with [block] [block_name_2] and vertically [aligned] with [block] [block_name_3]
+3 0.25
+[move] [block] [block_name_1] [so] it is vertically [aligned] with [block] [block_name_3] and horizontally [aligned] with [block] [block_name_2]
+3 0.25
+[move] [block] [block_name_1] [so] it is in [the] same line as [block] [block_name_2] and same column as [block] [block_name_3]
+3 0.25
+[move] [block] [block_name_1] [so] it is in [the] same column as [block] [block_name_3] and same line as [block] [block_name_2]
+3 0.25
+[move] [block] [block_name_1] [so] it is [number_1] [spaces] [direction_1] [block_name_2]
+4 1.0
+in the space [direction_1] [block] [block_name_1] , [move] [block] [block_name_2]
+5 0.5
+[direction_1] [block] [block_name_1] , [move] [block] [block_name_2]
+5 0.5
+between [block] [block_name_1] and [block] [block_name_2] should be [block] [block_name_3]
+6 1.0
+[move] [block] [block_name_1] [direction_1] [block] [block_name_2] , then slide it one tile [right_down_left_up_1]
+7 1.0
+
+
+
+
