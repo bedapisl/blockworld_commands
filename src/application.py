@@ -13,7 +13,7 @@ import numpy as np
 from utils import convert_world
 from prepare_data import prepare_single_command
 from run_model import load_args, load_model
-from setting import max_command_len, all_tags
+from setting import max_command_len, all_tags, logos
 
 
 class ApplicationGUI(QWidget):
@@ -31,7 +31,7 @@ class ApplicationGUI(QWidget):
         self.x_offset = 10
         self.line_height = 30
         self.window_length = 1000
-        self.window_height = 950
+        self.window_height = 1000
         self.default_command_id = 0
         self.world_before_showed = True
     
@@ -67,16 +67,22 @@ class ApplicationGUI(QWidget):
         self.back_button.resize(self.back_button.sizeHint())
         self.back_button.move(self.x_offset, self.y_offset + 3 * self.line_height)
         self.back_button.clicked.connect(self.back)
-        #self.back_button.setEnabled(False)
 
         self.forward_button = QPushButton("->", self)
         self.forward_button.setToolTip("Show current world state")
         self.forward_button.resize(self.forward_button.sizeHint())
         self.forward_button.move(self.x_offset + 90, self.y_offset + 3 * self.line_height)
         self.forward_button.clicked.connect(self.forward)
-        #self.forward_button.setEnabled(False)
         
-        self.setGeometry(200, 100, self.window_length, self.window_height)
+        self.weights_text = QTextEdit(self)
+        self.weights_text.resize(self.weights_text.sizeHint())
+        self.weights_text.setFixedWidth(170)
+        self.weights_text.setFixedHeight(800)
+        self.weights_text.move(2 * self.x_offset + 800, self.y_offset + 4 * self.line_height)
+        self.weights_text.setText("")
+        self.weights_text.setReadOnly(True)
+        
+        self.setGeometry(200, 50, self.window_length, self.window_height)
         self.setWindowTitle('Blockworld commands')
         self.show()
 
@@ -92,6 +98,7 @@ class ApplicationGUI(QWidget):
             self.world_before_showed = True
             self.forward_button.setEnabled(False)
             self.back_button.setEnabled(False)
+            self.hide_weights()
         
         except ValueError:
             QMessageBox.warning(self, "Warning", "Command ID must be value between 0 and " + str(self.backend.max_command_id))
@@ -118,6 +125,7 @@ class ApplicationGUI(QWidget):
         current_command = self.command_text.text()
         self.backend.process(current_command)
         self.forward()
+        self.show_weights()
         QApplication.restoreOverrideCursor()
 
 
@@ -133,7 +141,27 @@ class ApplicationGUI(QWidget):
         painter.end()
         self.show()
         self.update()
+    
+    
+    def show_weights(self):
+        if self.backend.reference_weights is None or self.backend.direction is None:
+            return
 
+        string_to_show = ""
+        for i, weight in enumerate(self.backend.reference_weights):
+            if self.backend.logo:
+                string_to_show += logos[i] + ": " + format(weight, ".2f") + "\n"
+            else:
+                string_to_show += str(i + 1) + ": " + format(weight, ".2f") + "\n"
+
+        string_to_show += "direction x: " + format(self.backend.direction[0], ".2f") + "\n"
+        string_to_show += "direction y: " + format(self.backend.direction[1], ".2f") + "\n"
+        self.weights_text.setText(string_to_show)
+
+
+    def hide_weights(self):
+        self.weights_text.setText("")
+            
 
 class ApplicationBackend:
     def __init__(self):
@@ -147,6 +175,8 @@ class ApplicationBackend:
         self.world_after = None
         self.source_model = load_model(load_args(self.source_model_id), self.source_model_id)
         self.location_model = load_model(load_args(self.location_model_id), self.location_model_id)
+        self.reference_weights = None
+        self.direction = None
         
     
     def get_preprocessing_version(self, model_id):
@@ -156,11 +186,13 @@ class ApplicationBackend:
         
     def load_command(self, command_id):
         command_dataset = Dataset("single_command", self.source_preprocessing_version, specific_command = command_id)
-        raw_commands, logos, _, _ = command_dataset.get_raw_commands_and_logos()
-        self.logo = logos[0]
+        raw_commands, loaded_logos, _, _ = command_dataset.get_raw_commands_and_logos()
+        self.logo = loaded_logos[0]
         _, worlds, sources, locations, _, _ = command_dataset.get_all_data()
         self.world_before = worlds[0]
         self.world_after = None
+        self.reference_weights = None
+        self.direction = None
         return raw_commands[0]
         
 
@@ -192,6 +224,9 @@ class ApplicationBackend:
                 predicted_source = predicted_sources[0]
             else:
                 predicted_location = predicted_locations[0][0]
+                reference_weights, _, direction = models[i].get_reference(np.array([encoded_command]), np.array([self.world_before]), np.array([-1]), np.array([[0, 0]]), np.array([encoded_tags]), np.array([self.logo]), "single_prediction")
+                self.reference_weights = reference_weights[0]
+                self.direction = direction[0]
 
         self.world_after = copy.deepcopy(self.world_before)
         self.world_after[2 * predicted_source] = predicted_location[0]
