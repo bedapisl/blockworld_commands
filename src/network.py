@@ -275,7 +275,7 @@ class Network:
         return predicted_source, predicted_location
 
     
-    def get_reference(self, commands, world, source_id, location, tags, dataset):
+    def get_reference(self, commands, world, source_id, location, tags, logos, dataset):
         feed_dict = {self.command : commands, self.command_lens : self.get_command_lens(commands), self.world : world, self.source : source_id, self.location : location,
                             self.dropout_input_tensor : 0.0, self.dropout_output_tensor : 0.0, self.dropout_input_multiplier : 1.0 - self.dropout_input, 
                             self.dropout_output_multiplier : 1.0 - self.dropout_output, self.tags : tags}

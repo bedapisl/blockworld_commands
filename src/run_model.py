@@ -47,7 +47,7 @@ def evaluate(model, dataset, epoch, dimension = 2):
 def create_images(run_id):  
     args = load_args(run_id)
     model = load_model(args, run_id)
-    dataset = Dataset("train", args["version"], specific_command = 11)
+    dataset = Dataset("train", args["version"])
 
     commands, worlds, sources, locations, tags, logos = dataset.get_all_data()
     raw_commands, is_logos, command_ids, tokenized = dataset.get_raw_commands_and_logos()
