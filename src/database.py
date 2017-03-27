@@ -1,7 +1,7 @@
 
 import pdb
 
-database_type = "mysql"
+database_type = "sqlite"
 
 if database_type == "mysql":
     import pymysql.cursors
