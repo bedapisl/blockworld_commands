@@ -12,16 +12,19 @@ class BenchmarkModel:
         self.target = target
         self.version = version
         self.dimension = dimension
-        self.block_names = []
+        self.block_name_logos = []
+        self.block_name_digits = []
         self.direction_names = []
 
         for i, digit in enumerate(digits):
-            self.block_names.append([])
-            self.block_names[i].append(self.get_word_id(digit, db))
-            self.block_names[i].append(self.get_word_id(str(i + 1), db))
-            self.block_names[i].append(self.get_word_id(logos[i].replace(" ", ""), db))
+            self.block_name_digits.append([])
+            self.block_name_digits[i].append(self.get_word_id(digit, db))
+            self.block_name_digits[i].append(self.get_word_id(str(i + 1), db))
+
+            self.block_name_logos.append([])
+            self.block_name_logos[i].append(self.get_word_id(logos[i].replace(" ", ""), db))
             for logo_part in logos[i].split():
-                self.block_names[i].append(self.get_word_id(logo_part, db))
+                self.block_name_logos[i].append(self.get_word_id(logo_part, db))
         
         for i in range(0, len(directions)):
             self.direction_names.append([])
@@ -37,7 +40,7 @@ class BenchmarkModel:
         return -1
 
     
-    def predict(self, commands, worlds, correct_source, correct_location, tags, dataset):#, raw_commands):
+    def predict(self, commands, worlds, correct_source, correct_location, tags, logos, dataset):#, raw_commands):
         correct_source = None
         correct_location = None
         dataset = None
@@ -48,7 +51,7 @@ class BenchmarkModel:
         
         #pdb.set_trace()
 
-        for k, (command, world) in enumerate(zip(commands, worlds)):
+        for k, (command, world, logo) in enumerate(zip(commands, worlds, logos)):
         #    print(raw_commands[k])
 
             converted_world = []
@@ -59,11 +62,16 @@ class BenchmarkModel:
 
             world = converted_world
 
+            if logo:
+                block_names = self.block_name_logos
+            else:
+                block_names = self.block_name_digits
+
             blocks_in_command = []
             directions_in_command = []
             for word in command:
-                for block_id, block_names in enumerate(self.block_names):
-                    if word in block_names:
+                for block_id, block_name in enumerate(block_names):
+                    if word in block_name:
                         blocks_in_command.append(block_id)
                 
                 for direction_id, direction_names in enumerate(self.direction_names):
@@ -85,29 +93,34 @@ class BenchmarkModel:
                 continue
 
             source = blocks_in_command[0]
-            reference = blocks_in_command[-1]
+
+            if len(blocks_in_command) == 1:
+                location = [0, 0]
+            else:
+                location = world[blocks_in_command[-1]]
 
             if len(directions_in_command) == 0:     #no direction -> move directly to reference
                 sources.append(source)
-                locations.append(world[reference])
+                locations.append(location)
                 continue
 
             
             sources.append(source)
             direction = directions_in_command[-1]
             
-            locations.append(world[reference])
+            locations.append(location)
+            block_distance = 1.0936
             if direction == 0:
-                locations[-1][0] -= 1
+                locations[-1][0] -= block_distance
 
             if direction == 1:
-                locations[-1][-1] += 1
+                locations[-1][-1] += block_distance
 
             if direction == 2:
-                locations[-1][0] += 1
+                locations[-1][0] += block_distance
 
             if direction == 3:
-                locations[-1][-1] -= 1
+                locations[-1][-1] -= block_distance
 
            
             #print(sources[-1])
@@ -124,7 +137,7 @@ class BenchmarkModel:
         assert False
 
 
-    def train(self, command, world, source_id, location, tags):
+    def train(self, command, world, source_id, location, tags, logos):
         pass
             
 

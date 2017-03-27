@@ -19,9 +19,9 @@ from utils import convert_world
 
 
 def evaluate(model, dataset, epoch, dimension = 2):
-    commands, worlds, sources, locations, tags = dataset.get_all_data()
+    commands, worlds, sources, locations, tags, logos = dataset.get_all_data()
     #raw_commands, _, _, _ = dataset.get_raw_commands_and_logos()
-    predicted_sources, predicted_locations = model.predict(commands, worlds, sources, locations, tags, dataset.dataset_name)
+    predicted_sources, predicted_locations = model.predict(commands, worlds, sources, locations, tags, logos, dataset.dataset_name)
  
     source_accuracy = None
     location_distance = None
@@ -47,12 +47,12 @@ def evaluate(model, dataset, epoch, dimension = 2):
 def create_images(run_id):  
     args = load_args(run_id)
     model = load_model(args, run_id)
-    dataset = Dataset("dev", args["version"])
+    dataset = Dataset("train", args["version"], specific_command = 11)
 
-    commands, worlds, sources, locations, tags = dataset.get_all_data()
+    commands, worlds, sources, locations, tags, logos = dataset.get_all_data()
     raw_commands, is_logos, command_ids, tokenized = dataset.get_raw_commands_and_logos()
 
-    predicted_sources, predicted_locations = model.predict(commands, worlds, sources, locations, tags, dataset.dataset_name)
+    predicted_sources, predicted_locations = model.predict(commands, worlds, sources, locations, tags, logos, dataset.dataset_name)
 
     drawer = Drawer("./images/" + str(run_id))
 
@@ -361,8 +361,8 @@ def main():
         train_data.next_epoch()
         
         while not train_data.epoch_end():
-            commands, worlds, sources, locations, tags = train_data.get_next_batch(args["batch_size"])
-            model.train(commands, worlds, sources, locations, tags)
+            commands, worlds, sources, locations, tags, logos = train_data.get_next_batch(args["batch_size"])
+            model.train(commands, worlds, sources, locations, tags, logos)
 
         current_results = evaluate(model, dev_data, epoch)
         

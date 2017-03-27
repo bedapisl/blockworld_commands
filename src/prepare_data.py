@@ -163,7 +163,7 @@ class SpellChecker:
 
     def load_token_list(self):
         db = Database()
-        tokens = db.get_all_rows("SELECT TokenID, Token, Count FROM core.Vocabulary WHERE Version = " + str(self.vocabulary_version) + " ORDER BY Count DESC")
+        tokens = db.get_all_rows("SELECT TokenID, Token, Count FROM core.Vocabulary WHERE Version = " + str(self.vocabulary_version) + " ORDER BY Count ASC")
         self.tokens_list = []
         for (token_id, token, count) in tokens:
             self.tokens_list.append((token, count, {}, {}, token_id))
@@ -222,7 +222,7 @@ class SpellChecker:
             if count > self.occurences_to_repair:
                 break
             
-            correction = self.get_correct_class(token, lemmas, tags, use_min_count = False)
+            correction = self.get_correct_class(token, lemmas, tags)
             self.tokens_list = self.change_classes(token_class, correction, self.tokens_list)
 
         self.tokens_list = self.resolve_unknown(self.tokens_list)
@@ -230,7 +230,7 @@ class SpellChecker:
         return self.tokens_list
 
 
-    def get_correct_class(self, token, lemmas, tags, use_min_count):
+    def get_correct_class(self, token, lemmas, tags):
         if self.tokens_list is None:
             self.load_token_list()
 
@@ -412,7 +412,7 @@ def encode_command(command, tokenizer, lemmatizer, spell_checker):
     lemmas, command_tags = lemmatizer.lemmatize_tag(tokens)
             
     for i, word in enumerate(tokens):
-        token_class = spell_checker.get_correct_class(word, {lemmas[i]}, {command_tags[i]}, use_min_count = True)
+        token_class = spell_checker.get_correct_class(word, {lemmas[i]}, {command_tags[i]})
         encoded.append(token_class)
         if token_class == int(TokenID.UNK):
             tokens[i] = "<unk>(" + word + ")"
@@ -473,7 +473,7 @@ def prepare_data(version):
 def prepare_single_command(version, command):
     tokenizer, lemmatizer, spell_checker = get_tokenizer_lemmatizer_spellchecker(version)
     encoded_command, encoded_tags, tokens = encode_command(command, tokenizer, lemmatizer, spell_checker)
-    return (encoded_command, encoded_tags)
+    return (encoded_command, encoded_tags, tokens)
 
 
 def get_tokenizer_lemmatizer_spellchecker(version):
@@ -511,6 +511,8 @@ def get_version_settings():
     version_settings[27] = {"tokenization" : "udpipe", "ignore_words" : [], "use_hunspell" : True, "use_lemma" : False, "use_synonyms" : False, "min_count" : 4, "max_levenshtein" : 0, "hunspell_first" : False}
     version_settings[28] = {"tokenization" : "udpipe", "ignore_words" : version_3_ignore_words(), "use_hunspell" : True, "use_lemma" : True, "use_synonyms" : False, "min_count" : 4, "max_levenshtein" : 0, "hunspell_first" : False}
     version_settings[29] = {"tokenization" : "udpipe", "ignore_words" : version_3_ignore_words(), "use_hunspell" : True, "use_lemma" : True, "use_synonyms" : True, "min_count" : 4, "max_levenshtein" : 0, "hunspell_first" : False}
+    version_settings[30] = {"tokenization" : "rule_based", "ignore_words" : [], "use_hunspell" : False, "use_lemma" : False, "use_synonyms" : False, "min_count" : 0, "max_levenshtein" : 0, "hunspell_first" : False}
+
 
     return version_settings
 
@@ -547,7 +549,7 @@ def main():
 #    prepare_data(29, "udpipe", version_3_ignore_words(), use_hunspell = True, use_lemma = True, use_synonyms = True, min_count = 4, max_levenshtein = 0, hunspell_first = False)
 #
 
-    prepare_data(version = 22)   
+    prepare_data(version = 10)   
 
 
 if __name__ == "__main__":

@@ -23,21 +23,13 @@ class Network:
         self.summary_writer = tf.summary.FileWriter("logs/" + str(run_id) + "_" + target + "_" + network_type, flush_secs=10)
 
         with self.session.graph.as_default():
-#            if rnn_cell_type == "LSTM":
-#                rnn_cell = tf.contrib.rnn.LSTMCell(rnn_cell_dim)
-#
-#            elif rnn_cell_type == "GRU":
-#                rnn_cell = tf.contrib.rnn.GRUCell(rnn_cell_dim)
-#
-#            else:
-#                raise ValueError("RNN cell type must be 'LSTM' or 'GRU'")
-
             self.command = tf.placeholder(tf.int32, [None, max_command_len])          #[batch, sentence_length]
             self.command_lens = tf.placeholder(tf.int32, [None])
             self.tags = tf.placeholder(tf.int32, [None, max_command_len])
             self.world = tf.placeholder(tf.float32, [None, 20 * world_dimension])     #[batch, block_coordinates]
             self.source = tf.placeholder(tf.int32, [None])
             self.location = tf.placeholder(tf.float32, [None, world_dimension])
+            self.logos = tf.placeholder(tf.bool, [None])
 
             self.dropout_input_tensor = tf.placeholder(tf.float32, shape = ())
             self.dropout_output_tensor = tf.placeholder(tf.float32, shape = ())
@@ -91,9 +83,9 @@ class Network:
                
                 self.rnn_input = self.one_hot_words
 
-                if use_world:
-                    world_multiple_times = tf.reshape(tf.tile(self.world, [1, max_command_len]), [-1, max_command_len, 20 * world_dimension])
-                    self.rnn_input = tf.concat(axis=2, values=[self.rnn_input, world_multiple_times])
+                #if use_world:
+                #    world_multiple_times = tf.reshape(tf.tile(self.world, [1, max_command_len]), [-1, max_command_len, 20 * world_dimension])
+                #    self.rnn_input = tf.concat(axis=2, values=[self.rnn_input, world_multiple_times])
                 
                 if hidden_layers > 1:
                     self.rnn_input = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, rnn_cell_dim, hidden_layers - 1, "all_outputs")
@@ -107,6 +99,9 @@ class Network:
                         self.hidden_layer = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, rnn_cell_dim, 1, "output_sum")
                     
                     self.hidden_layer = tf.nn.dropout(self.hidden_layer, 1.0 - self.dropout_output_tensor)
+                    
+                    if use_world:
+                        self.hidden_layer = tf.concat(axis=1, values=[self.hidden_layer, self.world])
 
                     self.reference = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = 20, activation_fn = None)
                     self.location_by_direction = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = world_dimension, activation_fn = None)
@@ -130,7 +125,8 @@ class Network:
 
                 for i in range(hidden_layers):
                     self.ffn_input = tf.contrib.layers.fully_connected(self.ffn_input, num_outputs = hidden_dimension, activation_fn = tf.nn.relu)
-
+                    self.ffn_input = tf.nn.dropout(self.ffn_input, 1.0 - self.dropout_output_tensor)
+               
                 self.reference = tf.contrib.layers.fully_connected(self.ffn_input, num_outputs = 20, activation_fn = None)
                 self.location_by_direction = tf.contrib.layers.fully_connected(self.ffn_input, num_outputs = world_dimension, activation_fn = None)
                 self.logits = tf.contrib.layers.fully_connected(self.ffn_input, num_outputs = 20, activation_fn = None)
@@ -150,6 +146,12 @@ class Network:
                 if use_world:
                     self.predicted_location = self.location_by_direction
                 else:
+                    scale = True
+                    if scale:
+                        self.reference_sum = tf.reduce_sum(self.reference, axis = 1)
+                        self.reference_sum = tf.reshape(tf.stack([self.reference_sum] * 20, axis = 1), [-1, 20])
+                        self.reference = self.reference / self.reference_sum
+
                     self.reference_stacked = tf.stack([self.reference] * world_dimension, axis=2)   #[batch, 20, world_dimension]
                     self.world_reshaped = tf.reshape(self.world, [-1, 20, world_dimension])
                     self.multiple = tf.multiply(self.reference_stacked, self.world_reshaped)
@@ -247,7 +249,7 @@ class Network:
         assert False
 
 
-    def predict(self, commands, world, source_id, location, tags, dataset, generate_summary = True):
+    def predict(self, commands, world, source_id, location, tags, logos, dataset, generate_summary = True):
         predicted_location = None
         predicted_source = None
         feed_dict = {self.command : commands, self.command_lens : self.get_command_lens(commands), self.world : world, self.source : source_id, self.location : location,
@@ -287,7 +289,7 @@ class Network:
         return reference, location_reference, location_direction
 
     
-    def train(self, commands, world, source_id, location, tags):
+    def train(self, commands, world, source_id, location, tags, logos):
         feed_dict = {self.command : commands, self.command_lens : self.get_command_lens(commands), self.world : world, self.source : source_id, self.location : location,
                             self.dropout_input_tensor : self.dropout_input, self.dropout_output_tensor : self.dropout_output, self.dropout_input_multiplier : 1.0, self.dropout_output_multiplier : 1.0,
                             self.tags : tags}

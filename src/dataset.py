@@ -5,10 +5,12 @@ import ast
 import numpy as np
 import pdb
 from setting import max_command_len, all_tags
+from generator import Generator
+
 
 
 class Dataset:
-    def __init__(self, dataset, version, shuffle = True, dimension = 2, seed = 42, specific_command = None):
+    def __init__(self, dataset, version, shuffle = True, dimension = 2, seed = 42, specific_command = None, generated_commands = 0):
         random.seed(seed)
         self.version = version
         self.dataset_name = dataset
@@ -30,8 +32,14 @@ class Dataset:
                                         WHERE ModelInput.CommandID = '""" 
                                         + str(specific_command) + "' AND Version = " + str(version))
 
+        
+        generator = Generator(seed = seed)
 
-
+        for i in range(generated_commands):
+            sentence, world_before, source, location, logos = generator.new_sentence()
+            encoded_command, tags, tokens = prepare_single_command(version, sentence)
+            data.append((encoded_command, world_before, source, location, sentence, logos, -1, tags, tokens))
+        
         if shuffle:
             random.shuffle(data)       
 
@@ -116,11 +124,12 @@ class Dataset:
         self.instance_index = batch_end
 
         return (np.array(self.commands[batch_start:batch_end]), np.array(self.worlds[batch_start:batch_end]), 
-                    np.array(self.sources[batch_start:batch_end]), np.array(self.locations[batch_start:batch_end]), np.array(self.tags[batch_start:batch_end]))
+                    np.array(self.sources[batch_start:batch_end]), np.array(self.locations[batch_start:batch_end]), 
+                    np.array(self.tags[batch_start:batch_end]), np.array(self.logos[batch_start:batch_end]))
 
 
     def get_all_data(self):
-        return np.array(self.commands), np.array(self.worlds), np.array(self.sources), np.array(self.locations), np.array(self.tags)
+        return np.array(self.commands), np.array(self.worlds), np.array(self.sources), np.array(self.locations), np.array(self.tags), np.array(self.logos)
 
     
     def get_raw_commands_and_logos(self):

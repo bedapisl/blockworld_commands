@@ -137,8 +137,8 @@ class ApplicationGUI(QWidget):
 
 class ApplicationBackend:
     def __init__(self):
-        self.source_model_id = 1003
-        self.location_model_id = 1012
+        self.source_model_id = 2001
+        self.location_model_id = 2006
         self.max_command_id = 16766
         self.drawer = Drawer(output_dir = ".")
         self.source_preprocessing_version = self.get_preprocessing_version(self.source_model_id)
@@ -158,7 +158,7 @@ class ApplicationBackend:
         command_dataset = Dataset("single_command", self.source_preprocessing_version, specific_command = command_id)
         raw_commands, logos, _, _ = command_dataset.get_raw_commands_and_logos()
         self.logo = logos[0]
-        _, worlds, sources, locations, _ = command_dataset.get_all_data()
+        _, worlds, sources, locations, _, _ = command_dataset.get_all_data()
         self.world_before = worlds[0]
         self.world_after = None
         return raw_commands[0]
@@ -169,8 +169,6 @@ class ApplicationBackend:
             image = self.drawer.get_image(convert_world(self.world_before), self.logo)
 
         else:
-            #pyqtRemoveInputHook()
-            #pdb.set_trace()
             image = self.drawer.get_image(convert_world(self.world_after), self.logo)
 
         return QImage(ImageQt(image))
@@ -179,14 +177,16 @@ class ApplicationBackend:
     def process(self, command):
         versions = [self.source_preprocessing_version, self.location_preprocessing_version]
         models = [self.source_model, self.location_model]
-
+               
         for i in range(2):
-            encoded_command, encoded_tags = prepare_single_command(versions[i], command)
+            #pyqtRemoveInputHook()
+            #pdb.set_trace()
+            encoded_command, encoded_tags, _ = prepare_single_command(versions[i], command)
             while len(encoded_command) < max_command_len:
                 encoded_command.append(1)
                 encoded_tags.append(all_tags.index("X"))
-
-            predicted_sources, predicted_locations = models[i].predict(np.array([encoded_command]), np.array([self.world_before]), np.array([-1]), np.array([[0, 0]]), np.array([encoded_tags]), "single_prediction", generate_summary = False)
+           
+            predicted_sources, predicted_locations = models[i].predict(np.array([encoded_command]), np.array([self.world_before]), np.array([-1]), np.array([[0, 0]]), np.array([encoded_tags]), np.array([self.logo]), "single_prediction", generate_summary = False)
             
             if i == 0:
                 predicted_source = predicted_sources[0]
