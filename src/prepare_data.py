@@ -163,7 +163,7 @@ class SpellChecker:
 
     def load_token_list(self):
         db = Database()
-        tokens = db.get_all_rows("SELECT TokenID, Token, Count FROM core.Vocabulary WHERE Version = " + str(self.vocabulary_version) + " ORDER BY Count ASC")
+        tokens = db.get_all_rows("SELECT TokenID, Token, Count FROM Vocabulary WHERE Version = " + str(self.vocabulary_version) + " ORDER BY Count ASC")
         self.tokens_list = []
         for (token_id, token, count) in tokens:
             self.tokens_list.append((token, count, {}, {}, token_id))
