@@ -470,10 +470,21 @@ def prepare_data(version):
     create_training_data(version = version, tokenizer = tokenizer, lemmatizer = lemmatizer, spell_checker = spell_checker)
 
 
-def prepare_single_command(version, command):
-    tokenizer, lemmatizer, spell_checker = get_tokenizer_lemmatizer_spellchecker(version)
-    encoded_command, encoded_tags, tokens = encode_command(command, tokenizer, lemmatizer, spell_checker)
-    return (encoded_command, encoded_tags, tokens)
+class SingleCommandEncoder:
+    def __init__(self):
+        self.preloaded_version = -1
+        self.tokenizer = None
+        self.lemmatizer = None
+        self.spell_checker = None
+
+
+    def prepare_single_command(self, version, command):
+        if self.preloaded_version != version:
+            self.tokenizer, self.lemmatizer, self.spell_checker = get_tokenizer_lemmatizer_spellchecker(version)
+            self.preloaded_version = version
+
+        encoded_command, encoded_tags, tokens = encode_command(command, self.tokenizer, self.lemmatizer, self.spell_checker)
+        return (encoded_command, encoded_tags, tokens)
 
 
 def get_tokenizer_lemmatizer_spellchecker(version):

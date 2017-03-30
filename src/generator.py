@@ -122,7 +122,7 @@ class Generator:
         return world
 
 
-    def new_sentence(self):
+    def new_sentence(self, transform = True):
         random_selection = random.uniform(0, self.skeleton_weight_sum)
         weight_sum = 0
         skeleton = None
@@ -145,7 +145,20 @@ class Generator:
         if self.detect_collision(world_before, location):
             return self.new_sentence()
 
+        if transform:
+            for i, block_location in enumerate(world_before):
+                world_before[i] = self.transform_location(block_location)
+
+            location = self.transform_location(location)
+
         return sentence, world_before, source, location, logos
+
+    
+    def transform_location(self, location):
+        x = location[0]
+        y = location[1]
+
+        return (x, 0.6562, y)
 
 
 if __name__ == "__main__":
@@ -153,7 +166,7 @@ if __name__ == "__main__":
     drawer = Drawer("./images/generated/")
 
     for i in range(0, 20):
-        sentence, world_before, source, location, logos = generator.new_sentence()
+        sentence, world_before, source, location, logos = generator.new_sentence(transform = False)
         world_after = copy.deepcopy(world_before)
         world_after[source] = location
         drawer.save_image(sentence, world_before, world_after, logos, "", str(i), moved_block = source)

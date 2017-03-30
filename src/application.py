@@ -11,7 +11,7 @@ import pdb
 import copy
 import numpy as np
 from utils import convert_world
-from prepare_data import prepare_single_command
+from prepare_data import SingleCommandEncoder
 from run_model import load_args, load_model
 from setting import max_command_len, all_tags, logos
 
@@ -177,6 +177,7 @@ class ApplicationBackend:
         self.location_model = load_model(load_args(self.location_model_id), self.location_model_id)
         self.reference_weights = None
         self.direction = None
+        self.single_command_encoder = SingleCommandEncoder()
         
     
     def get_preprocessing_version(self, model_id):
@@ -213,7 +214,7 @@ class ApplicationBackend:
         for i in range(2):
             #pyqtRemoveInputHook()
             #pdb.set_trace()
-            encoded_command, encoded_tags, _ = prepare_single_command(versions[i], command)
+            encoded_command, encoded_tags, _ = self.single_command_encoder.prepare_single_command(versions[i], command)
             while len(encoded_command) < max_command_len:
                 encoded_command.append(1)
                 encoded_tags.append(all_tags.index("X"))

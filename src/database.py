@@ -1,13 +1,12 @@
 
 import pdb
 
-database_type = "sqlite"
+default_database_type = "sqlite"
 
-if database_type == "mysql":
-    import pymysql.cursors
-elif database_type == "sqlite":
-    import sqlite3
-
+#if database_type == "mysql":
+#    import pymysql.cursors
+#elif database_type == "sqlite":
+#    import sqlite3
 
 
 #MYSQL config
@@ -19,18 +18,21 @@ port = 3306
 
 
 #SQLite config
-database_file = "../data/database.db"
+default_database_file = "../data/database.db"
 
 
 class Database:
-    def __init__(self):
+    def __init__(self, database_type = default_database_type, database_file = default_database_file):
         if database_type == "mysql":
+            import pymysql.cursors
+
             self.connection = pymysql.connect(user = user, password = password, host = host, port = port, database = database, charset = 'utf8')
             self.cursor = self.connection.cursor()
             self.substitution_string = "%s"
         
         elif database_type == "sqlite":
-            self.connection = sqlite3.connect(database_file)
+            import sqlite3
+            self.connection = sqlite3.connect(database_file, timeout = 120)
             self.connection.text_factory = lambda x : str(x, 'latin1')
             self.cursor = self.connection.cursor()
             self.substitution_string = "?"
@@ -39,10 +41,13 @@ class Database:
 
 
     def execute(self, command, values = None):
-        if values == None:
-            self.cursor.execute(command)
-        else:
-            self.cursor.execute(command, values)
+        try:
+            if values == None:
+                self.cursor.execute(command)
+            else:
+                self.cursor.execute(command, values)
+
+        except 
         self.commit()
 
 
@@ -87,7 +92,7 @@ class Database:
         if len(values) == 0:
             return
         
-        command = "REPLACE INTO " + table + " VALUES (" + ", ".join(len(values) * [self.substitution_string]) + ")"
+        command = "INSERT INTO " + table + " VALUES (" + ", ".join(len(values) * [self.substitution_string]) + ")"
         self.execute(command, values)
     
     
@@ -95,7 +100,7 @@ class Database:
         if len(values) == 0:
             return
         
-        command = "REPLACE INTO " + table + " VALUES (" + ", ".join(len(values[0]) * [self.substitution_string]) + ")"
+        command = "INSERT INTO " + table + " VALUES (" + ", ".join(len(values[0]) * [self.substitution_string]) + ")"
 
         self.execute_many(command, values)
 

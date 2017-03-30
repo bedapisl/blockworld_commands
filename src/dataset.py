@@ -6,7 +6,7 @@ import numpy as np
 import pdb
 from setting import max_command_len, all_tags
 from generator import Generator
-
+from prepare_data import SingleCommandEncoder
 
 
 class Dataset:
@@ -34,11 +34,12 @@ class Dataset:
 
         
         generator = Generator(seed = seed)
-
+        single_command_encoder = SingleCommandEncoder()
+        
         for i in range(generated_commands):
             sentence, world_before, source, location, logos = generator.new_sentence()
-            encoded_command, tags, tokens = prepare_single_command(version, sentence)
-            data.append((encoded_command, world_before, source, location, sentence, logos, -1, tags, tokens))
+            encoded_command, tags, tokens = single_command_encoder.prepare_single_command(version, sentence)
+            data.append((str(encoded_command), str(world_before), source, str(location), sentence, logos, -1, str(tags), str(tokens)))
         
         if shuffle:
             random.shuffle(data)       

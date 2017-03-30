@@ -146,11 +146,11 @@ class Network:
                 if use_world:
                     self.predicted_location = self.location_by_direction
                 else:
-                    scale = True
-                    if scale:
-                        self.reference_sum = tf.reduce_sum(self.reference, axis = 1)
-                        self.reference_sum = tf.reshape(tf.stack([self.reference_sum] * 20, axis = 1), [-1, 20])
-                        self.reference = self.reference / self.reference_sum
+                #    scale = True
+                #    if scale:
+                #        self.reference_sum = tf.reduce_sum(self.reference, axis = 1)
+                #        self.reference_sum = tf.reshape(tf.stack([self.reference_sum] * 20, axis = 1), [-1, 20])
+                #        self.reference = self.reference / self.reference_sum
 
                     self.reference_stacked = tf.stack([self.reference] * world_dimension, axis=2)   #[batch, 20, world_dimension]
                     self.world_reshaped = tf.reshape(self.world, [-1, 20, world_dimension])

@@ -47,7 +47,7 @@ def evaluate(model, dataset, epoch, dimension = 2):
 def create_images(run_id):  
     args = load_args(run_id)
     model = load_model(args, run_id)
-    dataset = Dataset("train", args["version"])
+    dataset = Dataset("dev", args["version"])
 
     commands, worlds, sources, locations, tags, logos = dataset.get_all_data()
     raw_commands, is_logos, command_ids, tokenized = dataset.get_raw_commands_and_logos()
@@ -303,6 +303,7 @@ def parse_arguments():
     parser.add_argument("--hidden_layers", default=1, type=int, help="Number of hidden layers in the middle part of network")
     parser.add_argument("--use_logos", default=False, type=bool, help="Whether use logos as part of input to model")
     parser.add_argument("--seed", default=42, type=int, help="Random seed")
+    parser.add_argument("--generated_commands", default=0, type=int, help="How many commands for training are automatically generated")
 
 
     args = parser.parse_args()
@@ -323,7 +324,7 @@ def main():
         create_images(args["create_images"])
         return
  
-    train_data = Dataset("train", args["version"])
+    train_data = Dataset("train", args["version"], generated_commands=args["generated_commands"])
     dev_data = Dataset("dev", args["version"])
     test_data = Dataset("test", args["version"])
     
