@@ -1,7 +1,7 @@
 
 import pdb
 
-default_database_type = "sqlite"
+default_database_type = "mysql"
 
 #if database_type == "mysql":
 #    import pymysql.cursors
@@ -41,13 +41,11 @@ class Database:
 
 
     def execute(self, command, values = None):
-        try:
-            if values == None:
-                self.cursor.execute(command)
-            else:
-                self.cursor.execute(command, values)
+        if values == None:
+            self.cursor.execute(command)
+        else:
+            self.cursor.execute(command, values)
 
-        except 
         self.commit()
 
 
