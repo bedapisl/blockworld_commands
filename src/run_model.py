@@ -304,6 +304,7 @@ def parse_arguments():
     parser.add_argument("--use_logos", default=False, type=bool, help="Whether use logos as part of input to model")
     parser.add_argument("--seed", default=42, type=int, help="Random seed")
     parser.add_argument("--generated_commands", default=0, type=int, help="How many commands for training are automatically generated")
+    parser.add_argument("--comment", default="", type=str, help="Description of this run")
 
 
     args = parser.parse_args()
@@ -398,6 +399,7 @@ def main():
         test_results = (None, None, None)
 
     save(run_id, args, best_results, test_results, start_time)
+    print(args["comment"])
 
 
 if __name__ == "__main__":

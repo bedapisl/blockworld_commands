@@ -79,6 +79,9 @@ class Network:
             
             
             ############################## HIDDEN LAYERS #############################
+
+            distinct_x_y_prediction = False
+
             if network_type == "rnn":
                
                 self.rnn_input = self.one_hot_words
@@ -102,19 +105,30 @@ class Network:
                     
                     if use_world:
                         self.hidden_layer = tf.concat(axis=1, values=[self.hidden_layer, self.world])
+                    
+                    if distinct_x_y_prediction:
+                        self.reference = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = 40, activation_fn = None)
+                        self.location_by_direction = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = world_dimension, activation_fn = None)
+                    else:
+                        self.reference = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = 20, activation_fn = None)
+                        self.location_by_direction = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = world_dimension, activation_fn = None)
 
-                    self.reference = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = 20, activation_fn = None)
-                    self.location_by_direction = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = world_dimension, activation_fn = None)
                     self.logits = tf.contrib.layers.fully_connected(self.hidden_layer, num_outputs = 20, activation_fn = None)
-                
+
                 elif rnn_output in ["direct_last_state", "direct_output_sum"]:
                     if rnn_output == "direct_last_state":
                         output_type = "last_state_sum"
                     elif rnn_output == "direct_output_sum":
                         output_type = "output_sum"
                     
-                    self.reference = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, 20, 1, output_type)
-                    self.location_by_direction = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, world_dimension, 1, output_type)
+
+                    if distinct_x_y_prediction:
+                        self.reference = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, 40, 1, output_type)
+                        self.location_by_direction = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, world_dimension, 1, output_type)
+                    else:
+                        self.reference = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, 20, 1, output_type)
+                        self.location_by_direction = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, world_dimension, 1, output_type)
+
                     self.logits = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, 20, 1, output_type)
                            
             elif network_type == "ffn":
@@ -151,8 +165,12 @@ class Network:
                 #        self.reference_sum = tf.reduce_sum(self.reference, axis = 1)
                 #        self.reference_sum = tf.reshape(tf.stack([self.reference_sum] * 20, axis = 1), [-1, 20])
                 #        self.reference = self.reference / self.reference_sum
-
-                    self.reference_stacked = tf.stack([self.reference] * world_dimension, axis=2)   #[batch, 20, world_dimension]
+                
+                    if distinct_x_y_prediction:
+                        self.reference_stacked = tf.reshape(self.reference, [-1, 20, world_dimension])
+                    else:
+                        self.reference_stacked = tf.stack([self.reference] * world_dimension, axis=2)   #[batch, 20, world_dimension]
+                    
                     self.world_reshaped = tf.reshape(self.world, [-1, 20, world_dimension])
                     self.multiple = tf.multiply(self.reference_stacked, self.world_reshaped)
                     self.location_by_reference = tf.reduce_sum(self.multiple, axis = 1)
