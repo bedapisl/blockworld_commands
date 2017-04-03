@@ -523,7 +523,8 @@ def get_version_settings():
     version_settings[28] = {"tokenization" : "udpipe", "ignore_words" : version_3_ignore_words(), "use_hunspell" : True, "use_lemma" : True, "use_synonyms" : False, "min_count" : 4, "max_levenshtein" : 0, "hunspell_first" : False}
     version_settings[29] = {"tokenization" : "udpipe", "ignore_words" : version_3_ignore_words(), "use_hunspell" : True, "use_lemma" : True, "use_synonyms" : True, "min_count" : 4, "max_levenshtein" : 0, "hunspell_first" : False}
     version_settings[30] = {"tokenization" : "rule_based", "ignore_words" : [], "use_hunspell" : False, "use_lemma" : False, "use_synonyms" : False, "min_count" : 0, "max_levenshtein" : 0, "hunspell_first" : False}
-
+    version_settings[31] = {"tokenization" : "rule_based", "ignore_words" : [], "use_hunspell" : False, "use_lemma" : False, "use_synonyms" : False, "min_count" : 6, "max_levenshtein" : 0, "hunspell_first" : False} 
+    version_settings[32] = {"tokenization" : "rule_based", "ignore_words" : [], "use_hunspell" : False, "use_lemma" : False, "use_synonyms" : False, "min_count" : 8, "max_levenshtein" : 0, "hunspell_first" : False} 
 
     return version_settings
 
@@ -560,7 +561,7 @@ def main():
 #    prepare_data(29, "udpipe", version_3_ignore_words(), use_hunspell = True, use_lemma = True, use_synonyms = True, min_count = 4, max_levenshtein = 0, hunspell_first = False)
 #
 
-    prepare_data(version = 10)   
+    prepare_data(version = 32)   
 
 
 if __name__ == "__main__":

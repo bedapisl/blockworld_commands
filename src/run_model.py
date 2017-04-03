@@ -49,10 +49,10 @@ def create_images(run_id):
     model = load_model(args, run_id)
     dataset = Dataset("dev", args["version"])
 
-    commands, worlds, sources, locations, tags, logos = dataset.get_all_data()
+    commands, worlds, sources, locations, tags, is_logos = dataset.get_all_data()
     raw_commands, is_logos, command_ids, tokenized = dataset.get_raw_commands_and_logos()
 
-    predicted_sources, predicted_locations = model.predict(commands, worlds, sources, locations, tags, logos, dataset.dataset_name)
+    predicted_sources, predicted_locations = model.predict(commands, worlds, sources, locations, tags, is_logos, dataset.dataset_name)
 
     drawer = Drawer("./images/" + str(run_id))
 

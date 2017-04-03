@@ -74,7 +74,8 @@ class Network:
             ############################### LOGOS ###################################
 
             if use_logos:
-                self.embedded_words = tf.concat(axis=2, values[self.embedded_words, self.logos])
+                self.logos_multiple_times = tf.reshape(tf.tile(self.logos, [max_command_len]), [-1, max_command_len, 1])
+                self.embedded_words = tf.concat(axis=2, values = [self.embedded_words, tf.to_float(self.logos_multiple_times)])
 
             ############################### DROPOUT INPUT ############################
             if target == "location":
@@ -277,7 +278,7 @@ class Network:
         predicted_source = None
         feed_dict = {self.command : commands, self.command_lens : self.get_command_lens(commands), self.world : world, self.source : source_id, self.location : location,
                             self.dropout_input_tensor : 0.0, self.dropout_output_tensor : 0.0, self.dropout_input_multiplier : 1.0 - self.dropout_input, 
-                            self.dropout_output_multiplier : 1.0 - self.dropout_output, self.tags : tags}
+                            self.dropout_output_multiplier : 1.0 - self.dropout_output, self.tags : tags, self.logos : logos}
 
         if generate_summary:
             if self.target == "location":
@@ -301,7 +302,7 @@ class Network:
     def get_reference(self, commands, world, source_id, location, tags, logos, dataset):
         feed_dict = {self.command : commands, self.command_lens : self.get_command_lens(commands), self.world : world, self.source : source_id, self.location : location,
                             self.dropout_input_tensor : 0.0, self.dropout_output_tensor : 0.0, self.dropout_input_multiplier : 1.0 - self.dropout_input, 
-                            self.dropout_output_multiplier : 1.0 - self.dropout_output, self.tags : tags}
+                            self.dropout_output_multiplier : 1.0 - self.dropout_output, self.tags : tags, self.logos : logos}
 
         if self.target == "location": 
             reference, location_reference, location_direction = self.session.run([self.reference, self.location_by_reference, self.location_by_direction], feed_dict)
@@ -315,7 +316,7 @@ class Network:
     def train(self, commands, world, source_id, location, tags, logos):
         feed_dict = {self.command : commands, self.command_lens : self.get_command_lens(commands), self.world : world, self.source : source_id, self.location : location,
                             self.dropout_input_tensor : self.dropout_input, self.dropout_output_tensor : self.dropout_output, self.dropout_input_multiplier : 1.0, self.dropout_output_multiplier : 1.0,
-                            self.tags : tags}
+                            self.tags : tags, self.logos : logos}
 
         debug = False
         if debug == False:
