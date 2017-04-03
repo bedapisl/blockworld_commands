@@ -71,6 +71,11 @@ class Network:
                 self.embedded_tags = tf.gather(self.tag_embeddings, self.tags)
                 self.embedded_words = tf.concat(axis=2, values=[self.embedded_words, self.embedded_tags])
             
+            ############################### LOGOS ###################################
+
+            if use_logos:
+                self.embedded_words = tf.concat(axis=2, values[self.embedded_words, self.logos])
+
             ############################### DROPOUT INPUT ############################
             if target == "location":
                 self.one_hot_words = tf.scalar_mul(self.dropout_input_multiplier, tf.nn.dropout(self.embedded_words, 1.0 - self.dropout_input_tensor))
