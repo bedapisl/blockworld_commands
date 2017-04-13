@@ -141,7 +141,7 @@ def save(run_id, args, dev_result, test_result, start_time):
     seconds = (time.time() - start_time) * args["threads"]
     computation_time = str(int(seconds / 3600)) + ":" + str(int(seconds / 60) % 60)
 
-    db_cols = ["run_id", "target", "model", "version", "dev_result", "test_result", "epoch", "hidden_dimension", "learning_rate", "rnn_cell_dim", "rnn_cell_type", "bidirectional", "dropout_input", "dropout_output", "batch_size", "use_world", "embeddings", "hidden_layers", "rnn_output", "use_tags", "use_logos", "seed", "computation_time", "args"]
+    db_cols = ["run_id", "target", "model", "version", "dev_result", "test_result", "epoch", "hidden_dimension", "learning_rate", "rnn_cell_dim", "rnn_cell_type", "bidirectional", "dropout_input", "dropout_output", "batch_size", "use_world", "embeddings", "hidden_layers", "rnn_output", "use_tags", "use_logos", "seed", "computation_time", "generated_commands", "comment", "args"]
     
     args_to_delete = ["max_epochs", "test", "restore_and_test", "threads", "stop", "create_images", "continue_training"]
     if args["model"] == "ffn":
@@ -220,6 +220,7 @@ def load_args(run_id):
     args["use_tags"] = to_bool(row[19])
     args["use_logos"] = to_bool(row[20])
     args["seed"] = row[21]
+    args["generated_commands"] = row[23]
 
     if args["network_type"] == "ffn":
         args["rnn_cell_type"] = 'GRU'
