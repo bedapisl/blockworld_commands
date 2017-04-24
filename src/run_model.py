@@ -60,7 +60,7 @@ def create_images(run_id):
         predicted_sources = sources
         target_info = "Predicting location"
         predicting_source = False
-        references, location_references, location_directions = model.get_reference(commands, worlds, sources, locations, tags, dataset.dataset_name)
+        references, location_references, location_directions = model.get_reference(commands, worlds, sources, locations, tags, is_logos, dataset.dataset_name)
 
     elif predicted_locations is None:
         predicted_locations = locations
@@ -143,24 +143,25 @@ def save(run_id, args, dev_result, test_result, start_time):
 
     db_cols = ["run_id", "target", "model", "version", "dev_result", "test_result", "epoch", "hidden_dimension", "learning_rate", "rnn_cell_dim", "rnn_cell_type", "bidirectional", "dropout_input", "dropout_output", "batch_size", "use_world", "embeddings", "hidden_layers", "rnn_output", "use_tags", "use_logos", "seed", "computation_time", "generated_commands", "comment", "args"]
     
+    args_to_process = copy.deepcopy(args)
     args_to_delete = ["max_epochs", "test", "restore_and_test", "threads", "stop", "create_images", "continue_training"]
-    if args["model"] == "ffn":
+    if args_to_process["model"] == "ffn":
         args_to_delete += ["rnn_cell_type", "rnn_cell_dim", "bidirectional", "rnn_output"]
     
     for to_delete in args_to_delete:
         if to_delete in args.keys():
-            del args[to_delete]
+            del args_to_process[to_delete]
 
     row = []
     
     for col in db_cols:
-        if col in args.keys():
-            row.append(args[col])
-            del args[col]
+        if col in args_to_process.keys():
+            row.append(args_to_process[col])
+            del args_to_process[col]
         elif col in ["run_id", "dev_result", "test_result", "computation_time", "epoch"]:
             row.append(eval(col))
         elif col in ["args"]:
-            row.append(str(args))
+            row.append(str(args_to_process))
         else:
             row.append(None)
 
@@ -306,7 +307,7 @@ def parse_arguments():
     parser.add_argument("--seed", default=42, type=int, help="Random seed")
     parser.add_argument("--generated_commands", default=0, type=int, help="How many commands for training are automatically generated")
     parser.add_argument("--comment", default="", type=str, help="Description of this run")
-
+    parser.add_argument("--run_id", default=-1, type=int, help="ID of this run for saving results in database")
 
     args = parser.parse_args()
     args = vars(args)
@@ -338,7 +339,10 @@ def main():
     best_results = (0.0, 1000000.0, -1)
  
     if args["continue_training"] == -1:
-        run_id = get_run_id()
+        if args["run_id"] != -1:
+            run_id = args["run_id"]
+        else:
+            run_id = get_run_id()
 
         if args["model"] in ["rnn", "ffn"]:
             model = Network(args["model"], hidden_dimension = args["hidden_dimension"], run_id = run_id, learning_rate = args["learning_rate"], target = args["target"],
@@ -351,6 +355,8 @@ def main():
     
     else:
         run_id = args["continue_training"]
+        if args["run_id"] != -1:
+            print("Warning run_id argument ignored")
         user_args = copy.deepcopy(args)
         args = load_args(run_id)
         args["stop"] = user_args["stop"]
