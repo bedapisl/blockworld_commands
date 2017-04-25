@@ -141,7 +141,7 @@ def save(run_id, args, dev_result, test_result, start_time):
     seconds = (time.time() - start_time) * args["threads"]
     computation_time = str(int(seconds / 3600)) + ":" + str(int(seconds / 60) % 60)
 
-    db_cols = ["run_id", "target", "model", "version", "dev_result", "test_result", "epoch", "hidden_dimension", "learning_rate", "rnn_cell_dim", "rnn_cell_type", "bidirectional", "dropout_input", "dropout_output", "batch_size", "use_world", "embeddings", "hidden_layers", "rnn_output", "use_tags", "use_logos", "seed", "computation_time", "generated_commands", "comment", "args"]
+    db_cols = ["run_id", "target", "model", "version", "dev_result", "test_result", "epoch", "hidden_dimension", "learning_rate", "rnn_cell_dim", "rnn_cell_type", "bidirectional", "dropout_input", "dropout_output", "batch_size", "use_world", "embeddings", "hidden_layers", "rnn_output", "use_tags", "use_logos", "distinct_x_y", "seed", "computation_time", "generated_commands", "comment", "args"]
     
     args_to_process = copy.deepcopy(args)
     args_to_delete = ["max_epochs", "test", "restore_and_test", "threads", "stop", "create_images", "continue_training"]
@@ -220,8 +220,9 @@ def load_args(run_id):
     args["rnn_output"] = row[18]
     args["use_tags"] = to_bool(row[19])
     args["use_logos"] = to_bool(row[20])
-    args["seed"] = row[21]
-    args["generated_commands"] = row[23]
+    args["distinct_x_y"] = to_bool(row[21])
+    args["seed"] = row[22]
+    args["generated_commands"] = row[24]
 
     if args["network_type"] == "ffn":
         args["rnn_cell_type"] = 'GRU'
@@ -254,7 +255,7 @@ def load_model(args, run_id):
                         rnn_cell_dim = args["rnn_cell_dim"], rnn_cell_type = args["rnn_cell_type"], bidirectional = args["bidirectional"], use_world = args["use_world"], 
                         dropout_input = args["dropout_input"], dropout_output = args["dropout_output"], embeddings = args["embeddings"], version = args["version"], 
                         use_tags = args["use_tags"], rnn_output = args["rnn_output"], hidden_layers = args["hidden_layers"], use_logos = args["use_logos"], seed = args["seed"],
-                        threads = 1)
+                        distinct_x_y = args["distinct_x_y"], threads = 1)
 
     checkpoint = tf.train.get_checkpoint_state("checkpoints/" + str(run_id))
     model.saver.restore(model.session, checkpoint.model_checkpoint_path)
@@ -308,6 +309,7 @@ def parse_arguments():
     parser.add_argument("--generated_commands", default=0, type=int, help="How many commands for training are automatically generated")
     parser.add_argument("--comment", default="", type=str, help="Description of this run")
     parser.add_argument("--run_id", default=-1, type=int, help="ID of this run for saving results in database")
+    parser.add_argument("--distinct_x_y", default=False, type=bool, help="Whether predict x and y coordinates of block together of distinctly.")
 
     args = parser.parse_args()
     args = vars(args)
@@ -348,7 +350,7 @@ def main():
             model = Network(args["model"], hidden_dimension = args["hidden_dimension"], run_id = run_id, learning_rate = args["learning_rate"], target = args["target"],
                             rnn_cell_dim = args["rnn_cell_dim"], rnn_cell_type = args["rnn_cell_type"], bidirectional = args["bidirectional"], threads = args["threads"], use_world = args["use_world"],
                             dropout_input = args["dropout_input"], dropout_output = args["dropout_output"], embeddings = args["embeddings"], version = args["version"], use_tags = args["use_tags"],
-                            rnn_output = args["rnn_output"], hidden_layers = args["hidden_layers"], use_logos = args["use_logos"], seed = args["seed"])
+                            rnn_output = args["rnn_output"], hidden_layers = args["hidden_layers"], use_logos = args["use_logos"], distinct_x_y = args["distinct_x_y"], seed = args["seed"])
 
         elif args["model"] in ["benchmark"]:
             model = BenchmarkModel(args["version"], target = args["target"])
