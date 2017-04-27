@@ -138,6 +138,8 @@ def save(run_id, args, dev_result, test_result, start_time):
         dev_result = dev_result[1]
         test_result = test_result[1]
 
+    args["run_id"] = run_id
+
     seconds = (time.time() - start_time) * args["threads"]
     computation_time = str(int(seconds / 3600)) + ":" + str(int(seconds / 60) % 60)
 
@@ -341,10 +343,11 @@ def main():
     best_results = (0.0, 1000000.0, -1)
  
     if args["continue_training"] == -1:
-        if args["run_id"] != -1:
-            run_id = args["run_id"]
-        else:
+        if args["run_id"] == -1:
             run_id = get_run_id()
+            args["run_id"] = run_id
+        else:
+            run_id = args["run_id"]
 
         if args["model"] in ["rnn", "ffn"]:
             model = Network(args["model"], hidden_dimension = args["hidden_dimension"], run_id = run_id, learning_rate = args["learning_rate"], target = args["target"],
@@ -357,6 +360,7 @@ def main():
     
     else:
         run_id = args["continue_training"]
+        args["run_id"] = run_id
         if args["run_id"] != -1:
             print("Warning run_id argument ignored")
         user_args = copy.deepcopy(args)
@@ -406,6 +410,8 @@ def main():
         print_results(test_results)
     else:
         test_results = (None, None, None)
+
+    pdb.set_trace()
 
     save(run_id, args, best_results, test_results, start_time)
     print(args["comment"])
