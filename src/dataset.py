@@ -5,12 +5,14 @@ import ast
 import numpy as np
 import pdb
 from setting import max_command_len, all_tags
+import copy
 
 class Dataset:
-    def __init__(self, dataset, version, shuffle = True, dimension = 2, seed = 42, specific_command = None, generated_commands = 0):
+    def __init__(self, dataset, version, shuffle = True, dimension = 2, seed = 42, specific_command = None, generated_commands = 0, switch_blocks = 0.0):
         random.seed(seed)
         self.version = version
         self.dataset_name = dataset
+        self.switch_blocks = switch_blocks
 
         db = Database()
 
@@ -29,6 +31,10 @@ class Dataset:
                                         WHERE ModelInput.CommandID = '""" 
                                         + str(specific_command) + "' AND Version = " + str(version))
 
+
+        if switch_blocks > 0.0:
+            from benchmark_model import BenchmarkModel
+            self.benchmark = BenchmarkModel(version, "source")
 
         if generated_commands > 0:
             from generator import Generator
@@ -125,9 +131,38 @@ class Dataset:
         batch_end = min(batch_start + batch_size, len(self.commands))
         self.instance_index = batch_end
 
-        return (np.array(self.commands[batch_start:batch_end]), np.array(self.worlds[batch_start:batch_end]), 
-                    np.array(self.sources[batch_start:batch_end]), np.array(self.locations[batch_start:batch_end]), 
-                    np.array(self.tags[batch_start:batch_end]), np.array(self.logos[batch_start:batch_end]))
+        results_order = [self.commands, self.worlds, self.sources, self.locations, self.tags, self.logos]
+        results = []
+
+        for single_result in results_order:
+            results.append(np.array(single_result[batch_start:batch_end]))
+
+        if self.switch_blocks > 0.0:
+            switched_commands = []
+            switched_worlds = []
+            for i in range(batch_start, batch_end):
+                if self.switch_blocks > random.uniform(0,1):
+                    #print(self.worlds[i])
+                    #print(self.raw_commands[i])
+                    #print(self.commands[i])
+                    switched_world, switched_command = self.get_switched_blocks(i)
+                    #print(switched_world)
+                    #print(switched_command)
+                    #pdb.set_trace()
+                    switched_commands.append(switched_command)
+                    switched_worlds.append(switched_world)
+                else:
+                    switched_commands.append(self.commands[i])
+                    switched_worlds.append(self.worlds[i])
+
+            results[0] = np.array(switched_commands)
+            results[1] = np.array(switched_worlds)
+
+        return tuple(results)
+
+        #return (np.array(self.commands[batch_start:batch_end]), np.array(self.worlds[batch_start:batch_end]), 
+        #            np.array(self.sources[batch_start:batch_end]), np.array(self.locations[batch_start:batch_end]), 
+        #            np.array(self.tags[batch_start:batch_end]), np.array(self.logos[batch_start:batch_end]))
 
 
     def get_all_data(self):
@@ -170,4 +205,36 @@ class Dataset:
         self.command_ids = new_command_ids
         self.tags = new_tags
         self.tokenized = new_tokenized
+
+    
+    def get_switched_blocks(self, command_index):
+        old_world = self.worlds[command_index]
+        old_command = self.commands[command_index]
+        new_world = copy.deepcopy(old_world)
+        new_command = copy.deepcopy(old_command)
+
+        index_shuf = list(range(20))
+        random.shuffle(index_shuf)
+    
+        blocks_in_command, _ = self.benchmark.get_blocks_and_directions(old_command, self.logos[command_index], get_index = True)
+
+        if self.logos[command_index]:
+            block_names = self.benchmark.block_name_logos
+        else:
+            block_names = self.benchmark.block_name_digits
+
+        for i, j in enumerate(index_shuf):
+            new_world[2 * j] = old_world[2 * i]
+            new_world[2 * j + 1] = old_world[2 * i + 1]
+
+            for word_index, block_index in blocks_in_command:
+                if block_index == i:
+                    names_for_block = block_names[j]
+                    new_command[word_index] = names_for_block[random.randint(0, len(names_for_block) - 1)]
+
+        return new_world, new_command
+
+            
+            
+
 

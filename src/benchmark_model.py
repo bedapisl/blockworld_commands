@@ -40,6 +40,41 @@ class BenchmarkModel:
         return -1
 
     
+    def get_center_of_gravity(self, world, blocks):
+        x_coordinates = [world[i][0] for i in blocks]
+        x = sum(x_coordinates) / len(blocks)
+        y_coordinates = [world[i][1] for i in blocks]
+        y = sum(y_coordinates) / len(blocks)
+        return [x, y]
+
+
+    def get_blocks_and_directions(self, command, logos, get_index = False):
+        if logos:
+            block_names = self.block_name_logos
+        else:
+            block_names = self.block_name_digits
+
+        blocks_in_command = []
+        directions_in_command = []
+        for i, word in enumerate(command):
+            for block_id, block_name in enumerate(block_names):
+                if word in block_name:
+                    if get_index:
+                        blocks_in_command.append((i, block_id))
+                    else:
+                        blocks_in_command.append(block_id)
+            
+
+            for direction_id, direction_names in enumerate(self.direction_names):
+                if word in direction_names:
+                    if get_index:
+                        directions_in_command.append((i, direction_id))
+                    else:
+                        directions_in_command.append(direction_id)
+               
+        return (blocks_in_command, directions_in_command)    
+
+    
     def predict(self, commands, worlds, correct_source, correct_location, tags, logos, dataset):#, raw_commands):
         correct_source = None
         correct_location = None
@@ -47,12 +82,7 @@ class BenchmarkModel:
         sources = []
         locations = []
 
-        #number_of_blocks = [0] * 20
-        
-        #pdb.set_trace()
-
         for k, (command, world, logo) in enumerate(zip(commands, worlds, logos)):
-        #    print(raw_commands[k])
 
             converted_world = []
             for i in range(0, len(world), self.dimension):
@@ -62,31 +92,24 @@ class BenchmarkModel:
 
             world = converted_world
 
-            if logo:
-                block_names = self.block_name_logos
-            else:
-                block_names = self.block_name_digits
-
-            blocks_in_command = []
-            directions_in_command = []
-            for word in command:
-                for block_id, block_name in enumerate(block_names):
-                    if word in block_name:
-                        blocks_in_command.append(block_id)
-                
-                for direction_id, direction_names in enumerate(self.direction_names):
-                    if word in direction_names:
-                        directions_in_command.append(direction_id)
-            
-            #print(blocks_in_command)
-            #pdb.set_trace()
-
-            #number_of_blocks[len(set(blocks_in_command))] += 1
-            #if len(set(blocks_in_command)) >= 3:
-            #    pass
-                #print(len(set(blocks_in_command)))
-                #print(raw_commands[k])
- 
+            blocks_in_command, directions_in_command = self.get_blocks_and_directions(command, logo)
+#
+#            if logo:
+#                block_names = self.block_name_logos
+#            else:
+#                block_names = self.block_name_digits
+#
+#            blocks_in_command = []
+#            directions_in_command = []
+#            for word in command:
+#                for block_id, block_name in enumerate(block_names):
+#                    if word in block_name:
+#                        blocks_in_command.append(block_id)
+#                
+#                for direction_id, direction_names in enumerate(self.direction_names):
+#                    if word in direction_names:
+#                        directions_in_command.append(direction_id)
+#            
             if len(blocks_in_command) == 0:     #no block in command -> no change in world
                 sources.append(0)               
                 locations.append(world[0])
@@ -98,6 +121,7 @@ class BenchmarkModel:
                 location = [0, 0]
             else:
                 location = world[blocks_in_command[-1]]
+                #location = self.get_center_of_gravity(world, blocks_in_command[1:])
 
             if len(directions_in_command) == 0:     #no direction -> move directly to reference
                 sources.append(source)
@@ -121,14 +145,8 @@ class BenchmarkModel:
 
             if direction == 3:
                 locations[-1][-1] -= block_distance
-
            
-            #print(sources[-1])
-            #print(command)
-            #pdb.set_trace()
         
-        #locations = [item for sublist in locations for item in sublist]     #flatten locations
-        #print(number_of_blocks)
         if self.target == "source":
             return sources, None
         elif self.target == "location":

@@ -48,34 +48,66 @@ class Drawer:
             self.highlight_digits.append(highlight_digit_image)
 
 
-    
-    def draw_world(self, canvas, world, logos, offset, highlight = -1):
-        for i, (x, y) in enumerate(world):
-            if logos:
-                if highlight == i:
-                    image = self.highlight_logos[i]
-                else:
-                    image = self.logos[i]
+    def draw_single_block(self, canvas, x, y, offset, highlight, logos, block_number):
+        if logos:
+            if highlight:
+                image = self.highlight_logos[block_number]
             else:
-                if highlight == i:
-                    image = self.highlight_digits[i]
-                else:
-                    image = self.digits[i]
+                image = self.logos[block_number]
+        else:
+            if highlight:
+                image = self.highlight_digits[block_number]
+            else:
+                image = self.digits[block_number]
 
-            y = -y
-          
-            new_offset = []
-            new_offset.append(int(offset[0] + x * block_size[0] + image_size / 4))
-            new_offset.append(int(offset[1] + y * block_size[1] + image_size / 4))
-            canvas.paste(image, tuple(new_offset))
+        y = -y
+      
+        new_offset = []
+        new_offset.append(int(offset[0] + x * block_size[0] + image_size / 4))
+        new_offset.append(int(offset[1] + y * block_size[1] + image_size / 4))
+        canvas.paste(image, tuple(new_offset))
 
         return canvas
     
 
-    def get_image(self, world, logos, moved_block = -1):
+    def draw_world(self, canvas, world, logos, offset, highlight = -1, predicted_source = -1, predicted_location = None):
+        for i, (x, y) in enumerate(world):
+            if i == highlight:
+                canvas = self.draw_single_block(canvas, x, y, offset, True, logos, i)
+            else:
+                canvas = self.draw_single_block(canvas, x, y, offset, False, logos, i)
+
+        if predicted_source != -1 and predicted_location != None:
+            (x, y) = predicted_location
+            canvas = self.draw_single_block(canvas, x, y, offset, True, logos, predicted_source)
+
+        return canvas
+
+
+#            if logos:
+#                if highlight == i:
+#                    image = self.highlight_logos[i]
+#                else:
+#                    image = self.logos[i]
+#            else:
+#                if highlight == i:
+#                    image = self.highlight_digits[i]
+#                else:
+#                    image = self.digits[i]
+#
+#            y = -y
+#          
+#            new_offset = []
+#            new_offset.append(int(offset[0] + x * block_size[0] + image_size / 4))
+#            new_offset.append(int(offset[1] + y * block_size[1] + image_size / 4))
+#            canvas.paste(image, tuple(new_offset))
+#        return canvas
+    
+
+    def get_image(self, world, logos, predicted_source = -1, predicted_location = None):
         canvas = Image.new('RGBA', (800, 800), background_color)
         draw = PIL.ImageDraw.Draw(canvas)
-        canvas = self.draw_world(canvas, world, logos, [0, 0], highlight = moved_block)
+        canvas = self.draw_world(canvas, world, logos, [0, 0], highlight = -1, predicted_source = predicted_source, predicted_location = predicted_location)
         return canvas
  
 

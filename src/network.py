@@ -180,9 +180,15 @@ class Network:
                     self.location_by_reference = tf.reduce_sum(self.multiple, axis = 1)
                     
                     self.predicted_location = tf.add(self.location_by_reference, self.location_by_direction)
+                
 
-                self.average_distance = tf.reduce_mean(tf.sqrt(tf.reduce_sum(tf.square(self.location - self.predicted_location), axis = 1)))
-                self.loss = self.average_distance
+                    self.average_distance = tf.reduce_mean(tf.sqrt(tf.reduce_sum(tf.square(self.location - self.predicted_location), axis = 1)))
+                
+                    square_error = False
+                    if square_error:
+                        self.loss = tf.reduce_mean(tf.reduce_sum(tf.square(self.location - self.predicted_location), axis = 1))
+                    else:
+                        self.loss = self.average_distance
              
             #    if round_location:
             #        self.predicted_location = tf.scalar_mul(1.0936, tf.round(tf.scalar_mul(1.0 / 1.0936, self.predicted_location)))

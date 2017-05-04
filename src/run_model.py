@@ -25,6 +25,7 @@ def evaluate(model, dataset, epoch, dimension = 2):
  
     source_accuracy = None
     location_distance = None
+    correct = None
 
     if predicted_sources is not None:
         source_correct = 0
@@ -35,13 +36,18 @@ def evaluate(model, dataset, epoch, dimension = 2):
         source_accuracy = source_correct / float(len(commands))
 
     if predicted_locations is not None:    
+        location_errors = []
         location_difference = 0
         for i in range(0, len(commands)):
             location_difference += distance.euclidean(predicted_locations[i], locations[i])
+            location_errors.append(distance.euclidean(predicted_locations[i], locations[i]))
     
         location_distance = location_difference / float(len(commands))
 
-    return (source_accuracy, location_distance, epoch)
+        correct_percentage = len([x for x in location_errors if x < 0.5]) / len(location_errors)
+#        print("Less than 0.5 distance: " + str(correct_percentage))
+
+    return (source_accuracy, location_distance, correct_percentage, epoch)
 
 
 def create_images(run_id):  
@@ -118,32 +124,37 @@ def improvement(best_results, current_results):
 
 
 def print_results(results):
-    print("Epoch: " + str(results[2]))
+    print("Epoch: " + str(results[3]))
     if results[0] is not None:
         print("Source accuracy: " + str(results[0]))
     
     if results[1] is not None:
         print("Location distance: " + str(results[1]))
+        print("Correct: " + str(results[2]))
     
     print("")
 
 
-def save(run_id, args, dev_result, test_result, start_time):
+def save(run_id, args, dev_results, test_results, start_time):
     db = Database()
-    epoch = dev_result[2]
+    epoch = dev_results[3]
     if args["target"] == "source":
-        dev_result = dev_result[0]
-        test_result = test_result[0]
+        dev_result = dev_results[0]
+        test_result = test_results[0]
+        correct_dev = None
+        correct_test = None
     else:
-        dev_result = dev_result[1]
-        test_result = test_result[1]
+        dev_result = dev_results[1]
+        test_result = test_results[1]
+        correct_dev = dev_results[2]
+        correct_test = test_results[2]
 
     args["run_id"] = run_id
 
     seconds = (time.time() - start_time) * args["threads"]
     computation_time = str(int(seconds / 3600)) + ":" + str(int(seconds / 60) % 60)
 
-    db_cols = ["run_id", "target", "model", "version", "dev_result", "test_result", "epoch", "hidden_dimension", "learning_rate", "rnn_cell_dim", "rnn_cell_type", "bidirectional", "dropout_input", "dropout_output", "batch_size", "use_world", "embeddings", "hidden_layers", "rnn_output", "use_tags", "use_logos", "distinct_x_y", "seed", "computation_time", "generated_commands", "comment", "args"]
+    db_cols = ["run_id", "target", "model", "version", "dev_result", "test_result", "correct_dev", "correct_test", "epoch", "hidden_dimension", "learning_rate", "rnn_cell_dim", "rnn_cell_type", "bidirectional", "dropout_input", "dropout_output", "batch_size", "use_world", "embeddings", "hidden_layers", "rnn_output", "use_tags", "use_logos", "distinct_x_y", "seed", "computation_time", "generated_commands", "switch_blocks", "comment", "args"]
     
     args_to_process = copy.deepcopy(args)
     args_to_delete = ["max_epochs", "test", "restore_and_test", "threads", "stop", "create_images", "continue_training"]
@@ -160,7 +171,7 @@ def save(run_id, args, dev_result, test_result, start_time):
         if col in args_to_process.keys():
             row.append(args_to_process[col])
             del args_to_process[col]
-        elif col in ["run_id", "dev_result", "test_result", "computation_time", "epoch"]:
+        elif col in ["run_id", "dev_result", "test_result", "computation_time", "epoch", "correct_dev", "correct_test"]:
             row.append(eval(col))
         elif col in ["args"]:
             row.append(str(args_to_process))
@@ -207,24 +218,25 @@ def load_args(run_id):
     args["target"] = row[1]
     args["network_type"] = row[2]
     args["version"] = row[3]
-    args["epoch"] = row[6]
-    args["hidden_dimension"] = row[7]
-    args["learning_rate"] = row[8]
-    args["rnn_cell_dim"] = row[9]
-    args["rnn_cell_type"] = row[10]
-    args["bidirectional"] = to_bool(row[11])
-    args["dropout_input"] = row[12]
-    args["dropout_output"] = row[13]
-    args["batch_size"] = row[14]
-    args["use_world"] = to_bool(row[15])
-    args["embeddings"] = row[16]
-    args["hidden_layers"] = row[17]
-    args["rnn_output"] = row[18]
-    args["use_tags"] = to_bool(row[19])
-    args["use_logos"] = to_bool(row[20])
-    args["distinct_x_y"] = to_bool(row[21])
-    args["seed"] = row[22]
-    args["generated_commands"] = row[24]
+    args["epoch"] = row[8]
+    args["hidden_dimension"] = row[9]
+    args["learning_rate"] = row[10]
+    args["rnn_cell_dim"] = row[11]
+    args["rnn_cell_type"] = row[12]
+    args["bidirectional"] = to_bool(row[13])
+    args["dropout_input"] = row[14]
+    args["dropout_output"] = row[15]
+    args["batch_size"] = row[16]
+    args["use_world"] = to_bool(row[17])
+    args["embeddings"] = row[18]
+    args["hidden_layers"] = row[19]
+    args["rnn_output"] = row[20]
+    args["use_tags"] = to_bool(row[21])
+    args["use_logos"] = to_bool(row[22])
+    args["distinct_x_y"] = to_bool(row[23])
+    args["seed"] = row[24]
+    args["generated_commands"] = row[25]
+    args["switch_blocks"] = row[26]
 
     if args["network_type"] == "ffn":
         args["rnn_cell_type"] = 'GRU'
@@ -243,9 +255,9 @@ def load_best_result(run_id):
     row = list(db_output[0])
  
     if row[1] == "source":
-        return (row[4], 1000000, row[6])
+        return (row[4], 1000000, None, row[8])
     else:
-        return (0.0, row[4], row[6])
+        return (0.0, row[4], row[6], row[8])
 
 
 def load_model(args, run_id):
@@ -271,12 +283,14 @@ def test_model(run_id):
     test_results = evaluate(model, dataset, args["epoch"])
     print_results(test_results)
 
+    db = Database()
+    
     if test_results[0] != None:
         test_result = test_results[0]
     else:
         test_result = test_results[1]
+        db.execute("UPDATE Results SET CorrectTest = " + str(test_results[2]) + " WHERE RunID = " + str(run_id))   
 
-    db = Database()
     db.execute("UPDATE Results SET TestResult = " + str(test_result) + " WHERE RunID = " + str(run_id))
 
 
@@ -312,6 +326,8 @@ def parse_arguments():
     parser.add_argument("--comment", default="", type=str, help="Description of this run")
     parser.add_argument("--run_id", default=-1, type=int, help="ID of this run for saving results in database")
     parser.add_argument("--distinct_x_y", default=False, type=bool, help="Whether predict x and y coordinates of block together of distinctly.")
+    parser.add_argument("--switch_blocks", default=0, type=float, help="Data augmentation - shuffling blocks in command and world")
+
 
     args = parser.parse_args()
     args = vars(args)
@@ -330,12 +346,7 @@ def main():
     if args["create_images"] != -1:
         create_images(args["create_images"])
         return
- 
-    train_data = Dataset("train", args["version"], generated_commands=args["generated_commands"])
-    dev_data = Dataset("dev", args["version"])
-    test_data = Dataset("test", args["version"])
-    
-    
+   
     start_time = time.time()
     
     starting_epoch = 0
@@ -370,8 +381,12 @@ def main():
         args["test"] = user_args["test"]
         model = load_model(args, run_id)
         best_result = load_best_result(run_id)
-        starting_epoch = best_result[2]
+        starting_epoch = best_result[3]
     
+    train_data = Dataset("train", args["version"], generated_commands=args["generated_commands"], switch_blocks = args["switch_blocks"])
+    dev_data = Dataset("dev", args["version"])
+    test_data = Dataset("test", args["version"])
+     
     for epoch in range(starting_epoch, args["max_epochs"]):
         train_data.next_epoch()
         
@@ -409,9 +424,7 @@ def main():
         print("Test results:")
         print_results(test_results)
     else:
-        test_results = (None, None, None)
-
-    pdb.set_trace()
+        test_results = (None, None, None, None)
 
     save(run_id, args, best_results, test_results, start_time)
     print(args["comment"])

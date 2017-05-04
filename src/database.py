@@ -1,7 +1,7 @@
 
 import pdb
 
-default_database_type = "sqlite"
+default_database_type = "mysql"
 
 #if database_type == "mysql":
 #    import pymysql.cursors
@@ -90,7 +90,7 @@ class Database:
         if len(values) == 0:
             return
         
-        command = "INSERT INTO " + table + " VALUES (" + ", ".join(len(values) * [self.substitution_string]) + ")"
+        command = "REPLACE INTO " + table + " VALUES (" + ", ".join(len(values) * [self.substitution_string]) + ")"
         self.execute(command, values)
     
     
@@ -98,7 +98,7 @@ class Database:
         if len(values) == 0:
             return
         
-        command = "INSERT INTO " + table + " VALUES (" + ", ".join(len(values[0]) * [self.substitution_string]) + ")"
+        command = "REPLACE INTO " + table + " VALUES (" + ", ".join(len(values[0]) * [self.substitution_string]) + ")"
 
         self.execute_many(command, values)
 

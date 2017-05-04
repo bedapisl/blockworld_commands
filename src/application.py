@@ -81,7 +81,16 @@ class ApplicationGUI(QWidget):
         self.weights_text.move(2 * self.x_offset + 800, self.y_offset + 4 * self.line_height)
         self.weights_text.setText("")
         self.weights_text.setReadOnly(True)
-        
+
+        self.tokenized_text = QTextEdit(self)
+        self.tokenized_text.resize(self.tokenized_text.sizeHint())
+        self.tokenized_text.setFixedWidth(self.window_length - 2 * self.x_offset)
+        self.tokenized_text.setFixedHeight(50)
+        self.tokenized_text.move(self.x_offset, self.y_offset * 2 + 4 * self.line_height + 800)
+        self.tokenized_text.setText("")
+        self.tokenized_text.setReadOnly(True)
+
+
         self.setGeometry(200, 50, self.window_length, self.window_height)
         self.setWindowTitle('Blockworld commands')
         self.show()
@@ -98,7 +107,7 @@ class ApplicationGUI(QWidget):
             self.world_before_showed = True
             self.forward_button.setEnabled(False)
             self.back_button.setEnabled(False)
-            self.hide_weights()
+            #self.hide_weights()
         
         except ValueError:
             QMessageBox.warning(self, "Warning", "Command ID must be value between 0 and " + str(self.backend.max_command_id))
@@ -118,14 +127,15 @@ class ApplicationGUI(QWidget):
 
     
     def process(self):
-        if self.world_before_showed == False:
-            self.backend.world_before = self.backend.world_after
+        #if self.world_before_showed == False:
+        #    self.backend.world_before = self.backend.world_after
         
         QApplication.setOverrideCursor(Qt.WaitCursor)
         current_command = self.command_text.text()
         self.backend.process(current_command)
         self.forward()
         self.show_weights()
+        self.show_tokenized()
         QApplication.restoreOverrideCursor()
 
 
@@ -158,24 +168,33 @@ class ApplicationGUI(QWidget):
         string_to_show += "direction y: " + format(self.backend.direction[1], ".2f") + "\n"
         self.weights_text.setText(string_to_show)
 
+    
+    def show_tokenized(self):
+        if self.backend.tokenized_source != None and self.backend.tokenized_location != None:
+            self.tokenized_text.setText(str(self.backend.tokenized_source) + "\n" + str(self.backend.tokenized_location))
 
-    def hide_weights(self):
-        self.weights_text.setText("")
+
+    #def hide_weights(self):
+    #    self.weights_text.setText("")
             
 
 class ApplicationBackend:
     def __init__(self):
-        self.source_model_id = 2001
-        self.location_model_id = 2006
+        self.source_model_id = 5123
+        self.location_model_id = 5121
         self.max_command_id = 16766
         self.drawer = Drawer(output_dir = ".")
         self.source_preprocessing_version = self.get_preprocessing_version(self.source_model_id)
         self.location_preprocessing_version = self.get_preprocessing_version(self.location_model_id)
         self.world_before = None
         self.world_after = None
+        self.predicted_source = None
+        self.predicted_location = None
         self.source_model = load_model(load_args(self.source_model_id), self.source_model_id)
         self.location_model = load_model(load_args(self.location_model_id), self.location_model_id)
         self.reference_weights = None
+        self.tokenized_source = None
+        self.tokenized_location = None
         self.direction = None
         self.single_command_encoder = SingleCommandEncoder()
         
@@ -192,6 +211,8 @@ class ApplicationBackend:
         _, worlds, sources, locations, _, _ = command_dataset.get_all_data()
         self.world_before = worlds[0]
         self.world_after = None
+        self.predicted_source = None
+        self.predicted_location = None
         self.reference_weights = None
         self.direction = None
         return raw_commands[0]
@@ -202,7 +223,7 @@ class ApplicationBackend:
             image = self.drawer.get_image(convert_world(self.world_before), self.logo)
 
         else:
-            image = self.drawer.get_image(convert_world(self.world_after), self.logo)
+            image = self.drawer.get_image(convert_world(self.world_before), self.logo, predicted_source = self.predicted_source, predicted_location = self.predicted_location)
 
         return QImage(ImageQt(image))
 
@@ -214,7 +235,7 @@ class ApplicationBackend:
         for i in range(2):
             #pyqtRemoveInputHook()
             #pdb.set_trace()
-            encoded_command, encoded_tags, _ = self.single_command_encoder.prepare_single_command(versions[i], command)
+            encoded_command, encoded_tags, tokens = self.single_command_encoder.prepare_single_command(versions[i], command)
             while len(encoded_command) < max_command_len:
                 encoded_command.append(1)
                 encoded_tags.append(all_tags.index("X"))
@@ -222,16 +243,18 @@ class ApplicationBackend:
             predicted_sources, predicted_locations = models[i].predict(np.array([encoded_command]), np.array([self.world_before]), np.array([-1]), np.array([[0, 0]]), np.array([encoded_tags]), np.array([self.logo]), "single_prediction", generate_summary = False)
             
             if i == 0:
-                predicted_source = predicted_sources[0]
+                self.predicted_source = predicted_sources[0]
+                self.tokenized_source = tokens
             else:
-                predicted_location = predicted_locations[0][0]
+                self.predicted_location = predicted_locations[0][0]
                 reference_weights, _, direction = models[i].get_reference(np.array([encoded_command]), np.array([self.world_before]), np.array([-1]), np.array([[0, 0]]), np.array([encoded_tags]), np.array([self.logo]), "single_prediction")
                 self.reference_weights = reference_weights[0]
                 self.direction = direction[0]
+                self.tokenized_location = tokens
 
         self.world_after = copy.deepcopy(self.world_before)
-        self.world_after[2 * predicted_source] = predicted_location[0]
-        self.world_after[2 * predicted_source + 1] = predicted_location[1]
+        self.world_after[2 * self.predicted_source] = self.predicted_location[0]
+        self.world_after[2 * self.predicted_source + 1] = self.predicted_location[1]
 
 
 if __name__ == '__main__':
