@@ -25,7 +25,7 @@ def evaluate(model, dataset, epoch, dimension = 2):
  
     source_accuracy = None
     location_distance = None
-    correct = None
+    correct_percentage = None
 
     if predicted_sources is not None:
         source_correct = 0

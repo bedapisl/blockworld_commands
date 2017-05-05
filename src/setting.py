@@ -3,9 +3,11 @@ digits = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine"
 
 logos = ["adidas", "bmw", "burger king", "coca cola", "esso", "heineken", "hp", "mcdonalds", "mercedes benz", "nvidia", "pepsi", "shell", "sri", "starbucks", "stella artois", "target", "texaco", "toyota", "twitter", "ups"]
 
-directions = ["left", "above", "right", "below"]
+#directions = ["left", "above", "right", "below"]
 
-compass_directions = ["west", "north", "east", "south"]
+#compass_directions = ["west", "north", "east", "south"]
+
+directions = [["left", "west"], ["above", "north"], ["right", "east"], ["below", "south"]]
 
 all_tags = ["ADJ", "ADV", "INTJ", "NOUN", "PROPN", "VERB", "ADP", "AUX", "CCONJ", "CONJ", "DET", "NUM", "PART", "PRON", "SCONJ", "PUNCT", "SYM", "X"]
 

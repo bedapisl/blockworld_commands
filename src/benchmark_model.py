@@ -2,7 +2,7 @@
 
 from database import Database
 import pdb
-from setting import digits, logos, directions, compass_directions
+from setting import digits, logos, directions#, compass_directions
 
 
 class BenchmarkModel:
@@ -14,12 +14,21 @@ class BenchmarkModel:
         self.dimension = dimension
         self.block_name_logos = []
         self.block_name_digits = []
+        self.block_name_numerals = []
+        self.block_name_digits_and_numerals = []
         self.direction_names = []
+        self.no_block_words = [self.get_word_id("space", db), self.get_word_id("row", db), self.get_word_id("column", db)]
 
         for i, digit in enumerate(digits):
+            self.block_name_digits_and_numerals.append([])
+            self.block_name_digits_and_numerals[i].append(self.get_word_id(str(i + 1), db))
+            self.block_name_digits_and_numerals[i].append(self.get_word_id(digit, db))
+
             self.block_name_digits.append([])
-            self.block_name_digits[i].append(self.get_word_id(digit, db))
             self.block_name_digits[i].append(self.get_word_id(str(i + 1), db))
+            
+            self.block_name_numerals.append([])
+            self.block_name_numerals[i].append(self.get_word_id(digit, db))
 
             self.block_name_logos.append([])
             self.block_name_logos[i].append(self.get_word_id(logos[i].replace(" ", ""), db))
@@ -28,9 +37,9 @@ class BenchmarkModel:
         
         for i in range(0, len(directions)):
             self.direction_names.append([])
-            self.direction_names[i].append(self.get_word_id(directions[i], db))
-            self.direction_names[i].append(self.get_word_id(compass_directions[i], db))
-            
+            for direction in directions[i]:
+                self.direction_names[i].append(self.get_word_id(direction, db))
+
 
     def get_word_id(self, word, db):
         word_id = db.get_all_rows_single_element("SELECT TokenID FROM Vocabulary WHERE Token = '" + str(word) + "' AND Version = " + str(self.version))
@@ -52,13 +61,26 @@ class BenchmarkModel:
         if logos:
             block_names = self.block_name_logos
         else:
-            block_names = self.block_name_digits
-
+            block_names = self.block_name_digits_and_numerals
+        
         blocks_in_command = []
         directions_in_command = []
+        numerical_directions_in_command = []
+
         for i, word in enumerate(command):
             for block_id, block_name in enumerate(block_names):
+                if i + 1 == len(command):
+                    next_word = -1
+                else:
+                    next_word = command[i + 1]
+
                 if word in block_name:
+                    if next_word in self.no_block_words:
+                        continue
+
+                    if not logos and word in self.block_name_digits:        #pokud tam jsou cislice (napr. 4) tak budu ignorovat cislovky (napr. ctyri) jako bloky 
+                        block_names = self.block_name_digits
+
                     if get_index:
                         blocks_in_command.append((i, block_id))
                     else:
@@ -93,35 +115,21 @@ class BenchmarkModel:
             world = converted_world
 
             blocks_in_command, directions_in_command = self.get_blocks_and_directions(command, logo)
-#
-#            if logo:
-#                block_names = self.block_name_logos
-#            else:
-#                block_names = self.block_name_digits
-#
-#            blocks_in_command = []
-#            directions_in_command = []
-#            for word in command:
-#                for block_id, block_name in enumerate(block_names):
-#                    if word in block_name:
-#                        blocks_in_command.append(block_id)
-#                
-#                for direction_id, direction_names in enumerate(self.direction_names):
-#                    if word in direction_names:
-#                        directions_in_command.append(direction_id)
-#            
+
             if len(blocks_in_command) == 0:     #no block in command -> no change in world
                 sources.append(0)               
                 locations.append(world[0])
                 continue
 
             source = blocks_in_command[0]
+    
+            blocks_in_command = [x for x in blocks_in_command if x != source]        #remove source
 
-            if len(blocks_in_command) == 1:
+            if len(blocks_in_command) == 0:
                 location = [0, 0]
             else:
-                location = world[blocks_in_command[-1]]
-                #location = self.get_center_of_gravity(world, blocks_in_command[1:])
+                #location = world[blocks_in_command[-1]]
+                location = self.get_center_of_gravity(world, blocks_in_command)
 
             if len(directions_in_command) == 0:     #no direction -> move directly to reference
                 sources.append(source)
@@ -153,6 +161,10 @@ class BenchmarkModel:
             return None, locations
         
         assert False
+
+    
+    def get_reference(self, commands, world, source_id, location, tags, logos, dataset):
+        return [[]] * len(commands), [None] * len(commands), [None] * len(commands)
 
 
     def train(self, command, world, source_id, location, tags, logos):
