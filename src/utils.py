@@ -37,21 +37,43 @@ def get_embedding_matrix(vocabulary_version):
     
 
     db = Database()
-    
-    vocabulary_words = db.get_all_rows_single_element("SELECT Token FROM Vocabulary WHERE Version = " + str(vocabulary_version) + " ORDER BY TokenID ASC")
-
-    embeddings = []
 
     missing = []
-    for word in vocabulary_words:
+    embeddings = []
+       
+    for i in range(0, vocabulary_length(vocabulary_version)):
+        word_tuple = db.get_all_rows_single_element("SELECT Token FROM Vocabulary WHERE TokenID = " + str(i) + " ORDER BY Count ASC LIMIT 1")
+        
+        if len(word_tuple) == 0:
+            embeddings.append(np.zeros(50))
+            continue
+
+        word = word_tuple[0]
+        
         if word in embeddings_dict.keys():
-            embeddings.append(embeddings_dict[word])
+            embeddings.append(np.array(embeddings_dict[word]))
         else:
             missing.append(word)
             embeddings.append(np.random.uniform(-1.0, 1.0, size = 50))
 
-    return np.array(embeddings)
-        
+    embeddings = np.array(embeddings).astype("float32")
+
+    return embeddings
+
+#    vocabulary_words = db.get_all_rows_single_element("SELECT Token FROM Vocabulary WHERE Version = " + str(vocabulary_version) + " ORDER BY TokenID ASC")
+#
+#    embeddings = []
+#
+#    missing = []
+#    for word in vocabulary_words:
+#        if word in embeddings_dict.keys():
+#            embeddings.append(embeddings_dict[word])
+#        else:
+#            missing.append(word)
+#            embeddings.append(np.random.uniform(-1.0, 1.0, size = 50))
+#
+#    return np.array(embeddings)
+#        
 
 def get_word_characters(vocabulary_version):
     db = Database()

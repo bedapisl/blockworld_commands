@@ -46,7 +46,7 @@ class Network:
                 self.embedded_words = tf.gather(self.embeddings, self.command)
 
             elif embeddings == "pretrained":
-                self.embeddings = tf.Variable(initial_value = get_embedding_matrix(version), dtype = tf.float32)
+                self.embeddings = tf.Variable(initial_value = get_embedding_matrix(version))
                 self.embedded_words = tf.gather(self.embeddings, self.command)
 
             elif embeddings == "character":
