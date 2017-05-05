@@ -28,7 +28,7 @@ def vocabulary_length(vocabulary_version):
 
 def get_embedding_matrix(vocabulary_version):
     embeddings_dict = {}
-    f = open("../data/glove.6B.50d.txt", "r")
+    f = open("../data/glove.6B.50d.txt", "r", encoding='utf-8')
     for line in f.readlines():
         words = line.split()
         embeddings_dict[words[0]] = []
