@@ -214,7 +214,7 @@ class Network:
             self.session.run(init)
     
     
-    def rnn_layers(self, rnn_input, sequence_length, rnn_cell_type, rnn_cell_dim, layers, output, dropout_hidden):
+    def rnn_layers(self, rnn_input, sequence_length, rnn_cell_type, rnn_cell_dim, layers, output, dropout_hidden = 0):
         assert layers > 0
 
         if rnn_cell_type == "LSTM":
