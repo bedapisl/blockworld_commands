@@ -95,7 +95,7 @@ class Network:
                 #    self.rnn_input = tf.concat(axis=2, values=[self.rnn_input, world_multiple_times])
                 
                 if hidden_layers > 1:
-                    self.rnn_input = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, rnn_cell_dim, hidden_layers - 1, "all_outputs")
+                    self.rnn_input = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, rnn_cell_dim, hidden_layers - 1, "all_outputs", self.dropout_output_tensor)
                     self.rnn_input = tf.nn.dropout(self.rnn_input, 1.0 - self.dropout_output_tensor)
                 
                 if rnn_output in ["last_state", "output_sum"]:
@@ -124,7 +124,6 @@ class Network:
                         output_type = "last_state_sum"
                     elif rnn_output == "direct_output_sum":
                         output_type = "output_sum"
-                    
 
                     if distinct_x_y:
                         self.reference = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, 40, 1, output_type)
@@ -215,7 +214,7 @@ class Network:
             self.session.run(init)
     
     
-    def rnn_layers(self, rnn_input, sequence_length, rnn_cell_type, rnn_cell_dim, layers, output):
+    def rnn_layers(self, rnn_input, sequence_length, rnn_cell_type, rnn_cell_dim, layers, output, dropout_hidden):
         assert layers > 0
 
         if rnn_cell_type == "LSTM":
@@ -232,6 +231,7 @@ class Network:
             self.rnn_layers_created += 1
             rnn_output, rnn_state = tf.nn.bidirectional_dynamic_rnn(rnn_cell, rnn_cell, rnn_input, sequence_length = sequence_length, dtype = tf.float32, scope = scope)
             rnn_input = tf.concat(axis=2, values=[rnn_output[0], rnn_output[1]])
+            rnn_input = tf.nn.dropout(rnn_input, 1.0 - dropout_hidden)
 
         if output == "last_state":
             if rnn_cell_type == "LSTM":
