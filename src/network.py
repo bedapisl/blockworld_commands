@@ -48,6 +48,10 @@ class Network:
             elif embeddings == "pretrained":
                 self.embeddings = tf.Variable(initial_value = get_embedding_matrix(version))
                 self.embedded_words = tf.gather(self.embeddings, self.command)
+            
+            elif embeddings == "static_pretrained":
+                self.embeddings = tf.Variable(initial_value = get_embedding_matrix(version), trainable=False)
+                self.embedded_words = tf.gather(self.embeddings, self.command)
 
             elif embeddings == "character":
                 char_rnn_cell = tf.contrib.rnn.GRUCell(embedding_dim)
