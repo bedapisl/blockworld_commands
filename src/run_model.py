@@ -314,7 +314,7 @@ def parse_arguments():
     parser.add_argument("--version", default=1, type=int, help="Which version of data to use")
     parser.add_argument("--dropout_input", default=0, type=float, help="Input dropout rate")
     parser.add_argument("--dropout_output", default=0, type=float, help="Output dropout rate")
-    parser.add_argument("--embeddings", default="none", type=str, choices=["none", "random", "pretrained", "character"], help="Type of embeddings")
+    parser.add_argument("--embeddings", default="none", type=str, choices=["none", "random", "pretrained", "static_pretrained", "character"], help="Type of embeddings")
     parser.add_argument("--continue_training", default=-1, type=int, help="Load model with given ID and continue training")
     parser.add_argument("--create_images", default=-1, type=int, help="Load model with given id and create images based on models predictions")
     parser.add_argument("--use_tags", default=False, type=bool, help="Whether use tags (Noun, Verb) as part of input to model")
