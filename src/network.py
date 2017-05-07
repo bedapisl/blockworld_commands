@@ -68,6 +68,22 @@ class Network:
                 _, self.embedded_words = tf.nn.dynamic_rnn(char_rnn_cell, self.embedded_chars_concat, sequence_length = self.command_word_lens, dtype = tf.float32)
                 self.embedded_words = tf.reshape(self.embedded_words, [-1, max_command_len, embedding_dim])
             
+            elif embeddings == "character_variant":
+                char_rnn_cell = tf.contrib.rnn.LSTMCell(embedding_dim / 2)
+                word_to_chars, num_chars, word_lens = get_word_characters(version)
+                self.word_to_chars = tf.constant(word_to_chars)     # [number_of_words, max_word_len]
+                self.word_lens = tf.constant(word_lens)             # [number_of_words]
+                self.command_in_chars = tf.gather(self.word_to_chars, self.command) # [batch_size, max_command_len, max_word_len]
+                self.command_word_lens = tf.gather(self.word_lens, self.command)    # [batch_size, max_command_len]
+
+                self.character_embeddings = tf.Variable(tf.random_uniform([num_chars, int(embedding_dim / 2)], minval = -1, maxval = 1))
+                self.embedded_chars = tf.gather(self.character_embeddings, self.command_in_chars)       # [batch_size, max_command_len, max_word_len, embedding_dim]
+                self.embedded_chars_concat = tf.reshape(self.embedded_chars, [-1, max(word_lens), int(embedding_dim / 2)])
+                self.command_word_lens = tf.reshape(self.command_word_lens, [-1])
+                _, self.embedded_words = tf.nn.bidirectional_dynamic_rnn(char_rnn_cell, char_rnn_cell, self.embedded_chars_concat, sequence_length = self.command_word_lens, dtype = tf.float32)
+                self.embedded_words = tf.concat(axis = 1, values = [self.embedded_words[0].c, self.embedded_words[1].c])
+                self.embedded_words = tf.reshape(self.embedded_words, [-1, max_command_len, embedding_dim])
+
             ################################# TAGS ####################################
             if use_tags:
                 tag_dim = 10
