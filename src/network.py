@@ -9,7 +9,7 @@ from utils import get_embedding_matrix, get_word_characters, vocabulary_length
 class Network:
     def __init__(self, network_type, run_id, learning_rate, target, rnn_cell_type, rnn_cell_dim, bidirectional, hidden_dimension, 
                             use_world, dropout_input, dropout_output, embeddings, version, threads, use_tags, rnn_output, hidden_layers, 
-                            use_logos, distinct_x_y, seed, world_dimension = 2):
+                            use_logos, use_source_flags, distinct_x_y, seed, world_dimension = 2):
         self.target = target
         self.dropout_input = dropout_input
         self.dropout_output = dropout_output
@@ -30,6 +30,7 @@ class Network:
             self.source = tf.placeholder(tf.int32, [None])
             self.location = tf.placeholder(tf.float32, [None, world_dimension])
             self.logos = tf.placeholder(tf.bool, [None])
+            self.source_flags = tf.placeholder(tf.int32, [None, max_command_len])
 
             self.dropout_input_tensor = tf.placeholder(tf.float32, shape = ())
             self.dropout_output_tensor = tf.placeholder(tf.float32, shape = ())
@@ -97,13 +98,20 @@ class Network:
                 self.logos_multiple_times = tf.reshape(tf.tile(self.logos, [max_command_len]), [-1, max_command_len, 1])
                 self.embedded_words = tf.concat(axis=2, values = [self.embedded_words, tf.to_float(self.logos_multiple_times)])
 
+            ############################### SOURCE INPUT ##################################
+
+            if use_source_flags:
+                assert target == "location"
+                self.source_flags_reshaped = tf.reshape(self.source_flags, [-1, max_command_len, 1])
+                self.embedded_words = tf.concat(axis=2, values = [self.embedded_words, tf.to_float(self.source_flags_reshaped)])
+
             ############################### DROPOUT INPUT ############################
             if target == "location":
                 self.one_hot_words = tf.scalar_mul(self.dropout_input_multiplier, tf.nn.dropout(self.embedded_words, 1.0 - self.dropout_input_tensor))
             else:
                 self.one_hot_words = tf.nn.dropout(self.embedded_words, 1.0 - self.dropout_input_tensor)
             
-            
+
             ############################## HIDDEN LAYERS #############################
 
             if network_type == "rnn":
@@ -173,7 +181,7 @@ class Network:
                 assert False
             
             ################################### OUTPUT LAYER #########################
-
+            
             if target == "source":
                 self.predicted_source = tf.argmax(self.logits, 1)
                 self.accuracy = tf.contrib.metrics.accuracy(tf.to_int32(self.predicted_source), self.source)
@@ -297,12 +305,12 @@ class Network:
         assert False
 
 
-    def predict(self, commands, world, source_id, location, tags, logos, dataset, generate_summary = True):
+    def predict(self, commands, world, source_id, location, tags, logos, source_flags, dataset, generate_summary = True):
         predicted_location = None
         predicted_source = None
         feed_dict = {self.command : commands, self.command_lens : self.get_command_lens(commands), self.world : world, self.source : source_id, self.location : location,
                             self.dropout_input_tensor : 0.0, self.dropout_output_tensor : 0.0, self.dropout_input_multiplier : 1.0 - self.dropout_input, 
-                            self.dropout_output_multiplier : 1.0 - self.dropout_output, self.tags : tags, self.logos : logos}
+                            self.dropout_output_multiplier : 1.0 - self.dropout_output, self.tags : tags, self.logos : logos, self.source_flags : source_flags}
 
         if generate_summary:
             if self.target == "location":
@@ -323,10 +331,10 @@ class Network:
         return predicted_source, predicted_location
 
     
-    def get_reference(self, commands, world, source_id, location, tags, logos, dataset):
+    def get_reference(self, commands, world, source_id, location, tags, logos, source_flags, dataset):
         feed_dict = {self.command : commands, self.command_lens : self.get_command_lens(commands), self.world : world, self.source : source_id, self.location : location,
                             self.dropout_input_tensor : 0.0, self.dropout_output_tensor : 0.0, self.dropout_input_multiplier : 1.0 - self.dropout_input, 
-                            self.dropout_output_multiplier : 1.0 - self.dropout_output, self.tags : tags, self.logos : logos}
+                            self.dropout_output_multiplier : 1.0 - self.dropout_output, self.tags : tags, self.logos : logos, self.source_flags : source_flags}
 
         if self.target == "location": 
             reference, location_reference, location_direction = self.session.run([self.reference, self.location_by_reference, self.location_by_direction], feed_dict)
@@ -337,10 +345,10 @@ class Network:
         return reference, location_reference, location_direction
 
     
-    def train(self, commands, world, source_id, location, tags, logos):
+    def train(self, commands, world, source_id, location, tags, logos, source_flags):
         feed_dict = {self.command : commands, self.command_lens : self.get_command_lens(commands), self.world : world, self.source : source_id, self.location : location,
                             self.dropout_input_tensor : self.dropout_input, self.dropout_output_tensor : self.dropout_output, self.dropout_input_multiplier : 1.0, self.dropout_output_multiplier : 1.0,
-                            self.tags : tags, self.logos : logos}
+                            self.tags : tags, self.logos : logos, self.source_flags : source_flags}
 
         debug = False
         if debug == False:

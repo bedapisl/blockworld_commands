@@ -19,9 +19,9 @@ from utils import convert_world
 
 
 def evaluate(model, dataset, epoch, dimension = 2):
-    commands, worlds, sources, locations, tags, logos = dataset.get_all_data()
+    commands, worlds, sources, locations, tags, logos, source_flags = dataset.get_all_data()
     #raw_commands, _, _, _ = dataset.get_raw_commands_and_logos()
-    predicted_sources, predicted_locations = model.predict(commands, worlds, sources, locations, tags, logos, dataset.dataset_name)
+    predicted_sources, predicted_locations = model.predict(commands, worlds, sources, locations, tags, logos, source_flags, dataset.dataset_name)
  
     source_accuracy = None
     location_distance = None
@@ -55,10 +55,10 @@ def create_images(run_id):
     model = load_model(args, run_id)
     dataset = Dataset("dev", args["version"])
 
-    commands, worlds, sources, locations, tags, is_logos = dataset.get_all_data()
+    commands, worlds, sources, locations, tags, is_logos, source_flags = dataset.get_all_data()
     raw_commands, is_logos, command_ids, tokenized = dataset.get_raw_commands_and_logos()
 
-    predicted_sources, predicted_locations = model.predict(commands, worlds, sources, locations, tags, is_logos, dataset.dataset_name)
+    predicted_sources, predicted_locations = model.predict(commands, worlds, sources, locations, tags, is_logos, source_flags, dataset.dataset_name)
 
     drawer = Drawer("./images/" + str(run_id))
 
@@ -66,7 +66,7 @@ def create_images(run_id):
         predicted_sources = sources
         target_info = "Predicting location"
         predicting_source = False
-        references, location_references, location_directions = model.get_reference(commands, worlds, sources, locations, tags, is_logos, dataset.dataset_name)
+        references, location_references, location_directions = model.get_reference(commands, worlds, sources, locations, tags, is_logos, source_flags, dataset.dataset_name)
 
     elif predicted_locations is None:
         predicted_locations = locations
@@ -268,18 +268,22 @@ def load_model(args, run_id):
     model = Network(args["network_type"], hidden_dimension = args["hidden_dimension"], run_id = run_id, learning_rate = args["learning_rate"], target = args["target"],
                         rnn_cell_dim = args["rnn_cell_dim"], rnn_cell_type = args["rnn_cell_type"], bidirectional = args["bidirectional"], use_world = args["use_world"], 
                         dropout_input = args["dropout_input"], dropout_output = args["dropout_output"], embeddings = args["embeddings"], version = args["version"], 
-                        use_tags = args["use_tags"], rnn_output = args["rnn_output"], hidden_layers = args["hidden_layers"], use_logos = args["use_logos"], seed = args["seed"],
-                        distinct_x_y = args["distinct_x_y"], threads = 1)
+                        use_tags = args["use_tags"], rnn_output = args["rnn_output"], hidden_layers = args["hidden_layers"], use_logos = args["use_logos"], use_source_flags = args["source_flags"],
+                        seed = args["seed"], distinct_x_y = args["distinct_x_y"], threads = 1)
 
     checkpoint = tf.train.get_checkpoint_state("checkpoints/" + str(run_id))
     model.saver.restore(model.session, checkpoint.model_checkpoint_path)
     return model
 
 
-def test_model(run_id):
+def test_model(run_id, test_dataset = False):
     args = load_args(run_id)
     model = load_model(args, run_id)
-    dataset = Dataset("test", args["version"])
+    if test_dataset:
+        dataset = Dataset("test", args["version"])
+    else:
+        dataset = Dataset("dev", args["version"])
+
     test_results = evaluate(model, dataset, args["epoch"])
     print_results(test_results)
 
@@ -289,9 +293,15 @@ def test_model(run_id):
         test_result = test_results[0]
     else:
         test_result = test_results[1]
-        db.execute("UPDATE Results SET CorrectTest = " + str(test_results[2]) + " WHERE RunID = " + str(run_id))   
-
-    db.execute("UPDATE Results SET TestResult = " + str(test_result) + " WHERE RunID = " + str(run_id))
+        if test_dataset:
+            db.execute("UPDATE Results SET CorrectTest = " + str(test_results[2]) + " WHERE RunID = " + str(run_id))
+        else:
+            db.execute("UPDATE Results SET CorrectDev = " + str(test_results[2]) + " WHERE RunID = " + str(run_id))
+    
+    if test_dataset:
+        db.execute("UPDATE Results SET TestResult = " + str(test_result) + " WHERE RunID = " + str(run_id))
+    else:
+        db.execute("UPDATE Results SET DevResult = " + str(test_result) + " WHERE RunID = " + str(run_id))
 
 
 def parse_arguments():
@@ -306,31 +316,42 @@ def parse_arguments():
     parser.add_argument("--learning_rate", default=0.01, type=float, help="Learning rate")
     parser.add_argument("--rnn_cell_dim", default=128, type=int, help="Dimension of rnn cells.")
     parser.add_argument("--rnn_cell_type", default="LSTM", type=str, choices=["LSTM", "GRU"], help="Type of rnn cell")
-    parser.add_argument("--bidirectional", default=True, type=bool, help="Whether the RNN network is bidirectional")
+    parser.add_argument("--bidirectional", default="True", type=str, choices=["False", "True"], help="Whether the RNN network is bidirectional")
     parser.add_argument("--target", default="location", type=str, choices=["source", "location"], help="Whether model should predict which block will be moved (source) or where it will be moved (location)")
-    parser.add_argument("--test", default=False, type=bool, help="Test trained model on testing data")
+    parser.add_argument("--test", default="False", type=str, choices=["False", "True"], help="Test trained model on testing data")
     parser.add_argument("--restore_and_test", default=-1, type=int, help="Load model with given id and test it on test data")
-    parser.add_argument("--use_world", default=False, type=bool, help="Whether model should use world state as input")
+    parser.add_argument("--use_world", default="False", type=str, choices=["False", "True"], help="Whether model should use world state as input")
     parser.add_argument("--version", default=1, type=int, help="Which version of data to use")
     parser.add_argument("--dropout_input", default=0, type=float, help="Input dropout rate")
     parser.add_argument("--dropout_output", default=0, type=float, help="Output dropout rate")
     parser.add_argument("--embeddings", default="none", type=str, choices=["none", "random", "pretrained", "static_pretrained", "character", "character_variant"], help="Type of embeddings")
     parser.add_argument("--continue_training", default=-1, type=int, help="Load model with given ID and continue training")
     parser.add_argument("--create_images", default=-1, type=int, help="Load model with given id and create images based on models predictions")
-    parser.add_argument("--use_tags", default=False, type=bool, help="Whether use tags (Noun, Verb) as part of input to model")
+    parser.add_argument("--use_tags", default="False", type=str, choices=["False", "True"], help="Whether use tags (Noun, Verb) as part of input to model")
     parser.add_argument("--rnn_output", default="last_state", choices = ["last_state", "all_outputs", "direct_last_state"], type=str, help="How and what output of rnn will be used")
     parser.add_argument("--hidden_layers", default=1, type=int, help="Number of hidden layers in the middle part of network")
-    parser.add_argument("--use_logos", default=False, type=bool, help="Whether use logos as part of input to model")
+    parser.add_argument("--use_logos", default="False", type=str, choices=["False", "True"], help="Whether use logos as part of input to model")
     parser.add_argument("--seed", default=42, type=int, help="Random seed")
     parser.add_argument("--generated_commands", default=0, type=int, help="How many commands for training are automatically generated")
     parser.add_argument("--comment", default="", type=str, help="Description of this run")
     parser.add_argument("--run_id", default=-1, type=int, help="ID of this run for saving results in database")
-    parser.add_argument("--distinct_x_y", default=False, type=bool, help="Whether predict x and y coordinates of block together of distinctly.")
+    parser.add_argument("--distinct_x_y", default="False", type=str, choices=["False", "True"], help="Whether predict x and y coordinates of block together of distinctly.")
     parser.add_argument("--switch_blocks", default=0, type=float, help="Data augmentation - shuffling blocks in command and world")
+    parser.add_argument("--source_flags", default="False", type=str, choices=["False", "True"], help="Use information which model is source when predicting location")
 
 
     args = parser.parse_args()
     args = vars(args)
+
+    bool_args = ["bidirectional", "test", "use_world", "use_tags", "use_logos", "distinct_x_y", "source_flags"]
+
+    for bool_arg in bool_args:
+        if args[bool_arg] == "False":
+            args[bool_arg] = False
+        elif args[bool_arg] == "True":
+            args[bool_arg] = True
+        else:
+            assert False
 
     return args
 
@@ -351,7 +372,7 @@ def main():
     
     starting_epoch = 0
     epochs_without_improvement = 0
-    best_results = (0.0, 1000000.0, -1)
+    best_results = (0.0, 1000000.0, 0.0, -1)
  
     if args["continue_training"] == -1:
         if args["run_id"] == -1:
@@ -364,7 +385,8 @@ def main():
             model = Network(args["model"], hidden_dimension = args["hidden_dimension"], run_id = run_id, learning_rate = args["learning_rate"], target = args["target"],
                             rnn_cell_dim = args["rnn_cell_dim"], rnn_cell_type = args["rnn_cell_type"], bidirectional = args["bidirectional"], threads = args["threads"], use_world = args["use_world"],
                             dropout_input = args["dropout_input"], dropout_output = args["dropout_output"], embeddings = args["embeddings"], version = args["version"], use_tags = args["use_tags"],
-                            rnn_output = args["rnn_output"], hidden_layers = args["hidden_layers"], use_logos = args["use_logos"], distinct_x_y = args["distinct_x_y"], seed = args["seed"])
+                            rnn_output = args["rnn_output"], hidden_layers = args["hidden_layers"], use_logos = args["use_logos"], use_source_flags = args["source_flags"], 
+                            distinct_x_y = args["distinct_x_y"], seed = args["seed"])
 
         elif args["model"] in ["benchmark"]:
             model = BenchmarkModel(args["version"], target = args["target"])
@@ -391,8 +413,8 @@ def main():
         train_data.next_epoch()
         
         while not train_data.epoch_end():
-            commands, worlds, sources, locations, tags, logos = train_data.get_next_batch(args["batch_size"])
-            model.train(commands, worlds, sources, locations, tags, logos)
+            commands, worlds, sources, locations, tags, logos, source_flags = train_data.get_next_batch(args["batch_size"])
+            model.train(commands, worlds, sources, locations, tags, logos, source_flags)
 
         current_results = evaluate(model, dev_data, epoch)
         

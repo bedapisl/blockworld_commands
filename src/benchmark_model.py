@@ -97,7 +97,7 @@ class BenchmarkModel:
         return (blocks_in_command, directions_in_command)    
 
     
-    def predict(self, commands, worlds, correct_source, correct_location, tags, logos, dataset):#, raw_commands):
+    def predict(self, commands, worlds, correct_source, correct_location, tags, logos, source_flags, dataset):#, raw_commands):
         correct_source = None
         correct_location = None
         dataset = None
@@ -163,11 +163,11 @@ class BenchmarkModel:
         assert False
 
     
-    def get_reference(self, commands, world, source_id, location, tags, logos, dataset):
+    def get_reference(self, commands, world, source_id, location, tags, logos, source_flags, dataset):
         return [[]] * len(commands), [None] * len(commands), [None] * len(commands)
 
 
-    def train(self, command, world, source_id, location, tags, logos):
+    def train(self, command, world, source_id, location, tags, logos, source_flags):
         pass
             
 

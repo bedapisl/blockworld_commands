@@ -6,6 +6,8 @@ import numpy as np
 import pdb
 from setting import max_command_len, all_tags
 import copy
+from benchmark_model import BenchmarkModel
+
 
 class Dataset:
     def __init__(self, dataset, version, shuffle = True, dimension = 2, seed = 42, specific_command = None, generated_commands = 0, switch_blocks = 0.0):
@@ -13,6 +15,7 @@ class Dataset:
         self.version = version
         self.dataset_name = dataset
         self.switch_blocks = switch_blocks
+        self.benchmark = BenchmarkModel(version, "source")
 
         db = Database()
 
@@ -31,10 +34,6 @@ class Dataset:
                                         WHERE ModelInput.CommandID = '""" 
                                         + str(specific_command) + "' AND Version = " + str(version))
 
-
-        if switch_blocks > 0.0:
-            from benchmark_model import BenchmarkModel
-            self.benchmark = BenchmarkModel(version, "source")
 
         if generated_commands > 0:
             from generator import Generator
@@ -60,6 +59,7 @@ class Dataset:
         self.command_ids = []
         self.tags = []
         self.tokenized = []
+        self.source_flags = []
 
         for command, world, source_id, location, raw_command, logo, command_id, tag, tokens in data:
             command = ast.literal_eval(command)
@@ -115,6 +115,18 @@ class Dataset:
                 tag.append(all_tags.index("X"))
             self.tags.append(tag)
             self.tokenized.append(tokens)
+            self.source_flags.append(self.get_source_flags(source_id, command, logo))
+
+
+    def get_source_flags(self, source, command, logo):
+        blocks_in_command, _ = self.benchmark.get_blocks_and_directions(command, logo, get_index = True)
+
+        source_flags = [0] * len(command)
+        for block_order, block_id in blocks_in_command:
+            if block_id == source:
+                source_flags[block_order] = 1
+     
+        return source_flags
     
 
     def epoch_end(self):
@@ -131,7 +143,7 @@ class Dataset:
         batch_end = min(batch_start + batch_size, len(self.commands))
         self.instance_index = batch_end
 
-        results_order = [self.commands, self.worlds, self.sources, self.locations, self.tags, self.logos]
+        results_order = [self.commands, self.worlds, self.sources, self.locations, self.tags, self.logos, self.source_flags]
         results = []
 
         for single_result in results_order:
@@ -166,7 +178,7 @@ class Dataset:
 
 
     def get_all_data(self):
-        return np.array(self.commands), np.array(self.worlds), np.array(self.sources), np.array(self.locations), np.array(self.tags), np.array(self.logos)
+        return np.array(self.commands), np.array(self.worlds), np.array(self.sources), np.array(self.locations), np.array(self.tags), np.array(self.logos), np.array(self.source_flags)
 
     
     def get_raw_commands_and_logos(self):
@@ -185,6 +197,7 @@ class Dataset:
         new_command_ids = []
         new_tags = []
         new_tokenized = []
+        new_source_flags = []
         for i in index_shuf:
             new_commands.append(self.commands[i])
             new_worlds.append(self.worlds[i])
@@ -195,6 +208,7 @@ class Dataset:
             new_command_ids.append(self.command_ids[i])
             new_tags.append(self.tags[i])
             new_tokenized.append(self.tokenized[i])
+            new_source_flags.append(self.source_flags[i])
     
         self.commands = new_commands
         self.worlds = new_worlds
@@ -205,6 +219,7 @@ class Dataset:
         self.command_ids = new_command_ids
         self.tags = new_tags
         self.tokenized = new_tokenized
+        self.source_flags = new_source_flags
 
     
     def get_switched_blocks(self, command_index):
