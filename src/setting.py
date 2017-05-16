@@ -7,7 +7,7 @@ logos = ["adidas", "bmw", "burger king", "coca cola", "esso", "heineken", "hp", 
 
 #compass_directions = ["west", "north", "east", "south"]
 
-directions = [["left", "west"], ["above", "north"], ["right", "east"], ["below", "south"]]
+directions = [["left", "west"], ["above", "north", "top", "upward", "atop", "upwards"], ["right", "east"], ["below", "south", "beneath", "bottom", "under", "downward", "downwards", "underneath"], ["northwest"], ["northeast"], ["southeast"], ["southwest"]]
 
 all_tags = ["ADJ", "ADV", "INTJ", "NOUN", "PROPN", "VERB", "ADP", "AUX", "CCONJ", "CONJ", "DET", "NUM", "PART", "PRON", "SCONJ", "PUNCT", "SYM", "X"]
 

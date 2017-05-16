@@ -119,7 +119,7 @@ class Dataset:
 
 
     def get_source_flags(self, source, command, logo):
-        blocks_in_command, _ = self.benchmark.get_blocks_and_directions(command, logo, get_index = True)
+        blocks_in_command, _, _ = self.benchmark.get_blocks_and_directions(command, logo, get_index = True)
 
         source_flags = [0] * len(command)
         for block_order, block_id in blocks_in_command:

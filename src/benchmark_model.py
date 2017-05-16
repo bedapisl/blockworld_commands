@@ -60,8 +60,10 @@ class BenchmarkModel:
     def get_blocks_and_directions(self, command, logos, get_index = False):
         if logos:
             block_names = self.block_name_logos
+            numerical_direction_names = self.block_name_digits_and_numerals
         else:
             block_names = self.block_name_digits_and_numerals
+            numerical_direction_names = []
         
         blocks_in_command = []
         directions_in_command = []
@@ -80,6 +82,7 @@ class BenchmarkModel:
 
                     if not logos and word in self.block_name_digits:        #pokud tam jsou cislice (napr. 4) tak budu ignorovat cislovky (napr. ctyri) jako bloky 
                         block_names = self.block_name_digits
+                        numerical_direction_names = self.block_name_numerals
 
                     if get_index:
                         blocks_in_command.append((i, block_id))
@@ -93,8 +96,15 @@ class BenchmarkModel:
                         directions_in_command.append((i, direction_id))
                     else:
                         directions_in_command.append(direction_id)
-               
-        return (blocks_in_command, directions_in_command)    
+
+            for numerical_direction_id, numerical_direction_name in enumerate(numerical_direction_names):
+                if word in numerical_direction_name:
+                    if get_index:
+                        numerical_directions_in_command.append((i, numerical_direction_id))
+                    else:
+                        numerical_directions_in_command.append(numerical_direction_id)
+
+        return (blocks_in_command, directions_in_command, numerical_directions_in_command)    
 
     
     def predict(self, commands, worlds, correct_source, correct_location, tags, logos, source_flags, dataset):#, raw_commands):
@@ -114,7 +124,7 @@ class BenchmarkModel:
 
             world = converted_world
 
-            blocks_in_command, directions_in_command = self.get_blocks_and_directions(command, logo)
+            blocks_in_command, directions_in_command, numerical_directions_in_command = self.get_blocks_and_directions(command, logo)
 
             if len(blocks_in_command) == 0:     #no block in command -> no change in world
                 sources.append(0)               
@@ -142,6 +152,12 @@ class BenchmarkModel:
             
             locations.append(location)
             block_distance = 1.0936
+
+            use_numerical_direction = False
+            if use_numerical_direction:
+                if len(numerical_directions_in_command) > 0:
+                    block_distance *= numerical_directions_in_command[-1]
+
             if direction == 0:
                 locations[-1][0] -= block_distance
 
@@ -153,6 +169,22 @@ class BenchmarkModel:
 
             if direction == 3:
                 locations[-1][-1] -= block_distance
+            
+            if direction == 4:
+                locations[-1][0] -= block_distance
+                locations[-1][-1] += block_distance
+            
+            if direction == 5:
+                locations[-1][-1] += block_distance
+                locations[-1][0] += block_distance
+
+            if direction == 6:
+                locations[-1][0] += block_distance
+                locations[-1][-1] -= block_distance
+ 
+            if direction == 7:
+                locations[-1][-1] -= block_distance
+                locations[-1][0] -= block_distance
            
         
         if self.target == "source":

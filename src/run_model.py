@@ -154,7 +154,7 @@ def save(run_id, args, dev_results, test_results, start_time):
     seconds = (time.time() - start_time) * args["threads"]
     computation_time = str(int(seconds / 3600)) + ":" + str(int(seconds / 60) % 60)
 
-    db_cols = ["run_id", "target", "model", "version", "dev_result", "test_result", "correct_dev", "correct_test", "epoch", "hidden_dimension", "learning_rate", "rnn_cell_dim", "rnn_cell_type", "bidirectional", "dropout_input", "dropout_output", "batch_size", "use_world", "embeddings", "hidden_layers", "rnn_output", "use_tags", "use_logos", "distinct_x_y", "seed", "computation_time", "generated_commands", "switch_blocks", "comment", "args"]
+    db_cols = ["run_id", "target", "model", "version", "dev_result", "test_result", "correct_dev", "correct_test", "epoch", "hidden_dimension", "learning_rate", "rnn_cell_dim", "rnn_cell_type", "bidirectional", "dropout_input", "dropout_output", "batch_size", "use_world", "embeddings", "hidden_layers", "rnn_output", "use_tags", "use_logos", "distinct_x_y", "seed", "computation_time", "generated_commands", "switch_blocks", "source_flags", "comment", "args"]
     
     args_to_process = copy.deepcopy(args)
     args_to_delete = ["max_epochs", "test", "restore_and_test", "threads", "stop", "create_images", "continue_training"]
@@ -237,6 +237,7 @@ def load_args(run_id):
     args["seed"] = row[24]
     args["generated_commands"] = row[25]
     args["switch_blocks"] = row[26]
+    args["source_flags"] = row[27]
 
     if args["network_type"] == "ffn":
         args["rnn_cell_type"] = 'GRU'
@@ -276,7 +277,7 @@ def load_model(args, run_id):
     return model
 
 
-def test_model(run_id, test_dataset = False):
+def test_model(run_id, test_dataset = True):
     args = load_args(run_id)
     model = load_model(args, run_id)
     if test_dataset:
