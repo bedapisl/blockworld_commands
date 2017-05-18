@@ -56,9 +56,6 @@ def get_embedding_matrix(vocabulary_version):
             missing.append(word)
             embeddings.append(np.random.uniform(-1.0, 1.0, size = 50))
 
-    print(missing)
-    pdb.set_trace()
-
     embeddings = np.array(embeddings).astype("float32")
 
     return embeddings
