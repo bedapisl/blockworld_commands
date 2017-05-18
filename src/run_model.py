@@ -375,9 +375,6 @@ def parse_arguments():
 
 
 def main():
-    annotate_data()
-    return
-
     args = parse_arguments()
     random.seed(args["seed"])
     
