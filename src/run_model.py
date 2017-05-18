@@ -305,6 +305,23 @@ def test_model(run_id, test_dataset = True):
         db.execute("UPDATE Results SET DevResult = " + str(test_result) + " WHERE RunID = " + str(run_id))
 
 
+def annotate_data(run_id = 5123):
+    args = load_args(run_id)
+    model = load_model(args, run_id)
+    db = Database()
+    
+    for dataset_name in ["train", "dev", "test"]:
+        dataset = Dataset(dataset_name, args["version"])
+        
+        commands, worlds, sources, locations, tags, logos, source_flags = dataset.get_all_data()
+        raw_commands, logos, command_ids, tokenized = dataset.get_raw_commands_and_logos()
+        
+        for i in range(0, len(commands)):
+            predicted_source, predicted_location = model.predict(commands[i:i+1], worlds[i:i+1], sources[i:i+1], locations[i:i+1], tags[i:i+1], logos[i:i+1], source_flags[i:i+1], dataset_name)
+            assert predicted_location == None
+            db.execute("UPDATE ModelInput SET PredictedSource = " + str(predicted_source[0]) + " WHERE CommandID = " + str(command_ids[i]) + " AND `Version` = " + str(args["version"]))
+        
+
 def parse_arguments():
     parser = argparse.ArgumentParser()
 
@@ -358,6 +375,9 @@ def parse_arguments():
 
 
 def main():
+    annotate_data()
+    return
+
     args = parse_arguments()
     random.seed(args["seed"])
     

@@ -20,14 +20,14 @@ class Dataset:
         db = Database()
 
         if specific_command is None:
-            data = db.get_all_rows("""SELECT ModelInput.Command, WorldBefore, Source, Location, RawCommand, Decoration = 'logo', ModelInput.CommandID, Tags, Tokenized
+            data = db.get_all_rows("""SELECT ModelInput.Command, WorldBefore, Source, PredictedSource, Location, RawCommand, Decoration = 'logo', ModelInput.CommandID, Tags, Tokenized
                                         FROM ModelInput 
                                         JOIN Command ON Command.CommandID = ModelInput.CommandID
                                         JOIN Configuration ON Command.ConfigurationID = Configuration.ConfigurationID
                                         WHERE ModelInput.Dataset = '""" 
                                         + str(dataset) + "' AND Version = " + str(version) + " ORDER BY ModelInput.CommandID")
         else:
-            data = db.get_all_rows("""SELECT ModelInput.Command, WorldBefore, Source, Location, RawCommand, Decoration = 'logo', ModelInput.CommandID, Tags, Tokenized
+            data = db.get_all_rows("""SELECT ModelInput.Command, WorldBefore, Source, PredictedSource, Location, RawCommand, Decoration = 'logo', ModelInput.CommandID, Tags, Tokenized
                                         FROM ModelInput 
                                         JOIN Command ON Command.CommandID = ModelInput.CommandID
                                         JOIN Configuration ON Command.ConfigurationID = Configuration.ConfigurationID
@@ -61,7 +61,7 @@ class Dataset:
         self.tokenized = []
         self.source_flags = []
 
-        for command, world, source_id, location, raw_command, logo, command_id, tag, tokens in data:
+        for command, world, source_id, predicted_source_id, location, raw_command, logo, command_id, tag, tokens in data:
             command = ast.literal_eval(command)
             while len(command) < max_command_len:
                 command.append(1)
@@ -115,7 +115,7 @@ class Dataset:
                 tag.append(all_tags.index("X"))
             self.tags.append(tag)
             self.tokenized.append(tokens)
-            self.source_flags.append(self.get_source_flags(source_id, command, logo))
+            self.source_flags.append(self.get_source_flags(predicted_source_id, command, logo))
 
 
     def get_source_flags(self, source, command, logo):
