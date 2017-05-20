@@ -42,7 +42,7 @@ def get_embedding_matrix(vocabulary_version):
     embeddings = []
        
     for i in range(0, vocabulary_length(vocabulary_version)):
-        word_tuple = db.get_all_rows_single_element("SELECT Token FROM Vocabulary WHERE TokenID = " + str(i) + " ORDER BY Count DESC LIMIT 1")
+        word_tuple = db.get_all_rows_single_element("SELECT Token FROM Vocabulary WHERE Version = " + str(vocabulary_version) + " AND TokenID = " + str(i) + " ORDER BY Count DESC LIMIT 1")
         
         if len(word_tuple) == 0:
             embeddings.append(np.zeros(50))
