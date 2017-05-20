@@ -14,6 +14,7 @@ from utils import convert_world
 from prepare_data import SingleCommandEncoder
 from run_model import load_args, load_model
 from setting import max_command_len, all_tags, logos
+from benchmark_model import BenchmarkModel
 
 
 class ApplicationGUI(QWidget):
@@ -44,7 +45,8 @@ class ApplicationGUI(QWidget):
         self.command_id_text.setFixedWidth(70)
         self.command_id_text.move(self.x_offset, self.y_offset)
         self.command_id_text.setText(str(self.default_command_id))
-
+        self.command_id_text.setToolTip("Commands 11871-16767 are dev and test set")
+     
         self.load_command_button = QPushButton("Load Command", self)
         self.load_command_button.setToolTip("Loads command and world by ID")
         self.load_command_button.resize(self.load_command_button.sizeHint())
@@ -197,6 +199,7 @@ class ApplicationBackend:
         self.tokenized_location = None
         self.direction = None
         self.single_command_encoder = SingleCommandEncoder()
+        self.benchmark = BenchmarkModel(self.location_preprocessing_version, "location")
         
     
     def get_preprocessing_version(self, model_id):
@@ -208,7 +211,7 @@ class ApplicationBackend:
         command_dataset = Dataset("single_command", self.source_preprocessing_version, specific_command = command_id)
         raw_commands, loaded_logos, _, _ = command_dataset.get_raw_commands_and_logos()
         self.logo = loaded_logos[0]
-        _, worlds, sources, locations, _, _ = command_dataset.get_all_data()
+        _, worlds, sources, locations, _, _, _ = command_dataset.get_all_data()
         self.world_before = worlds[0]
         self.world_after = None
         self.predicted_source = None
@@ -231,7 +234,7 @@ class ApplicationBackend:
     def process(self, command):
         versions = [self.source_preprocessing_version, self.location_preprocessing_version]
         models = [self.source_model, self.location_model]
-               
+        
         for i in range(2):
             #pyqtRemoveInputHook()
             #pdb.set_trace()
@@ -240,14 +243,19 @@ class ApplicationBackend:
                 encoded_command.append(1)
                 encoded_tags.append(all_tags.index("X"))
            
-            predicted_sources, predicted_locations = models[i].predict(np.array([encoded_command]), np.array([self.world_before]), np.array([-1]), np.array([[0, 0]]), np.array([encoded_tags]), np.array([self.logo]), "single_prediction", generate_summary = False)
+            if i == 0:
+                source_flags = [0] * max_command_len
+            else:
+                source_flags = self.benchmark.get_source_flags(self.predicted_source, encoded_command, self.logo)
+            
+            predicted_sources, predicted_locations = models[i].predict(np.array([encoded_command]), np.array([self.world_before]), np.array([-1]), np.array([[0, 0]]), np.array([encoded_tags]), np.array([self.logo]), np.array([source_flags]), "single_prediction", generate_summary = False)
             
             if i == 0:
                 self.predicted_source = predicted_sources[0]
                 self.tokenized_source = tokens
             else:
                 self.predicted_location = predicted_locations[0][0]
-                reference_weights, _, direction = models[i].get_reference(np.array([encoded_command]), np.array([self.world_before]), np.array([-1]), np.array([[0, 0]]), np.array([encoded_tags]), np.array([self.logo]), "single_prediction")
+                reference_weights, _, direction = models[i].get_reference(np.array([encoded_command]), np.array([self.world_before]), np.array([-1]), np.array([[0, 0]]), np.array([encoded_tags]), np.array([self.logo]), np.array([source_flags]), "single_prediction")
                 self.reference_weights = reference_weights[0]
                 self.direction = direction[0]
                 self.tokenized_location = tokens

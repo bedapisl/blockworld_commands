@@ -94,11 +94,18 @@ def create_images(run_id):
         else:
             result = str(distance.euclidean(predicted_locations[i], locations[i]))
             result_description = "predicted: " + str(predicted_locations[i]) + ", correct: " + str(locations[i])
-            for j in range(len(references[i])):
-                if is_logos[i]:
-                    reference_description += logos[j] + ": " + format(references[i][j], ".2f") + ", "
+            for j in range(20):
+                if len(references[i]) == 20:
+                    reference_text = format(references[i][j], ".2f")
+                elif len(references[i]) == 40:      #distinct x y -> 40 weights
+                    reference_text = format(references[i][2*j], ".2f") + "," + format(references[i][2*j + 1], ".2f")
                 else:
-                    reference_description += str(j + 1) + ": " + format(references[i][j], ".2f") + ", "
+                    assert False
+
+                if is_logos[i]:
+                    reference_description += logos[j] + ": " + reference_text + ", "
+                else:
+                    reference_description += str(j + 1) + ": " + reference_text + ", "
 
                 if j % 8 == 7:
                     reference_description += "\n"
@@ -235,9 +242,9 @@ def load_args(run_id):
     args["use_logos"] = to_bool(row[22])
     args["distinct_x_y"] = to_bool(row[23])
     args["seed"] = row[24]
-    args["generated_commands"] = row[25]
-    args["switch_blocks"] = row[26]
-    args["source_flags"] = row[27]
+    args["generated_commands"] = row[26]
+    args["switch_blocks"] = row[27]
+    args["source_flags"] = to_bool(row[28])
 
     if args["network_type"] == "ffn":
         args["rnn_cell_type"] = 'GRU'
@@ -265,7 +272,7 @@ def load_model(args, run_id):
     if args["network_type"] == "benchmark":
         model = BenchmarkModel(args["version"], target = args["target"])
         return model
-
+    
     model = Network(args["network_type"], hidden_dimension = args["hidden_dimension"], run_id = run_id, learning_rate = args["learning_rate"], target = args["target"],
                         rnn_cell_dim = args["rnn_cell_dim"], rnn_cell_type = args["rnn_cell_type"], bidirectional = args["bidirectional"], use_world = args["use_world"], 
                         dropout_input = args["dropout_input"], dropout_output = args["dropout_output"], embeddings = args["embeddings"], version = args["version"], 
@@ -320,7 +327,94 @@ def annotate_data(run_id = 5123):
             predicted_source, predicted_location = model.predict(commands[i:i+1], worlds[i:i+1], sources[i:i+1], locations[i:i+1], tags[i:i+1], logos[i:i+1], source_flags[i:i+1], dataset_name)
             assert predicted_location == None
             db.execute("UPDATE ModelInput SET PredictedSource = " + str(predicted_source[0]) + " WHERE CommandID = " + str(command_ids[i]) + " AND `Version` = " + str(args["version"]))
+
+
+def analyze_model(run_id, dataset = None, print_bad_commands = True):
+    args = load_args(run_id)
+    model = load_model(args, run_id)
+
+    if dataset == None:
+        dataset = Dataset("dev", version = args["version"])
+    
+    benchmark = BenchmarkModel(version = args["version"], target = "source")
+
+    categories = ["Source, reference, direction", "Two directions", "More directions", "No direction", "Distance", "Block mentioned multiple times", "More references", "No reference", "Overall"]
+
+    commands, worlds, sources, locations, tags, logos, source_flags = dataset.get_all_data()
+    raw_commands, _, command_ids, _ = dataset.get_raw_commands_and_logos()
+    predicted_sources, predicted_locations = model.predict(commands, worlds, sources, locations, tags, logos, source_flags, dataset.dataset_name)
+
+    predictions = []
+    command_by_category = []
+    for i in range(len(categories)):
+        predictions.append([])
+        command_by_category.append([])
+    
+    for i in range(0, len(commands)):
+        blocks, directions, distances = benchmark.get_blocks_and_directions(commands[i], logos[i])
+
+        if len(set(blocks)) < 2:
+            category_index = 7
+
+        elif len(set(blocks)) > 2:
+            category_index = 6
+
+        elif len(blocks) > 2:
+            category_index = 5
+
+        elif len(distances) > 0:
+            category_index = 4
+
+        elif len(directions) == 0:
+            category_index = 3
+
+        elif len(directions) > 2:
+            category_index = 2
+
+        elif len(directions) == 2:
+            category_index = 1
+
+        elif len(directions) == 1:
+            category_index = 0
         
+        else:
+            assert False
+        
+        if predicted_sources is not None:
+            if sources[i] == predicted_sources[i]:
+                prediction = 1
+            else:
+                prediction = 0
+                    
+        if predicted_locations is not None:    
+            prediction = distance.euclidean(predicted_locations[i], locations[i])
+
+        predictions[category_index].append(prediction)
+        predictions[-1].append(prediction)      #overall results
+
+        command_by_category[category_index].append(command_ids[i])
+        command_by_category[-1].append(command_ids[i])
+                
+    for i in range(len(categories)):
+        mean = sum(predictions[i]) / len(predictions[i])
+        
+        if predicted_locations is not None:
+            correct_percentage = len([x for x in predictions[i] if x < 0.5]) / len(predictions[i])  #for location
+            bad_predictions = sorted(zip(predictions[i], command_by_category[i]), key = lambda x: x[0])[-5:] 
+        
+        else:
+            bad_predictions = [x for x in zip(predictions[i], command_by_category[i]) if x[0] == 0][0:5]
+
+        if predicted_sources is not None:
+            print(categories[i] + " (" + str(len(predictions[i])) + "):\t" + str(mean))
+
+        else:
+            print(categories[i] + " (" + str(len(predictions[i])) + "):\t" + str(mean) + "\t" + str(correct_percentage))
+
+        if print_bad_commands:
+            for (bad_prediction, command_id) in bad_predictions:
+                print(str(command_id) + ": " + str(bad_prediction))
+
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
@@ -356,6 +450,7 @@ def parse_arguments():
     parser.add_argument("--distinct_x_y", default="False", type=str, choices=["False", "True"], help="Whether predict x and y coordinates of block together of distinctly.")
     parser.add_argument("--switch_blocks", default=0, type=float, help="Data augmentation - shuffling blocks in command and world")
     parser.add_argument("--source_flags", default="False", type=str, choices=["False", "True"], help="Use information which model is source when predicting location")
+    parser.add_argument("--analyze", default=-1, type=int, help="Run_ID of model which you want analyze")
 
 
     args = parser.parse_args()
@@ -385,6 +480,10 @@ def main():
     if args["create_images"] != -1:
         create_images(args["create_images"])
         return
+
+    if args["analyze"] != -1:
+        analyze_model(args["analyze"])
+        return 
    
     start_time = time.time()
     

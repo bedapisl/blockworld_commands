@@ -115,19 +115,8 @@ class Dataset:
                 tag.append(all_tags.index("X"))
             self.tags.append(tag)
             self.tokenized.append(tokens)
-            self.source_flags.append(self.get_source_flags(predicted_source_id, command, logo))
+            self.source_flags.append(self.benchmark.get_source_flags(predicted_source_id, command, logo))
 
-
-    def get_source_flags(self, source, command, logo):
-        blocks_in_command, _, _ = self.benchmark.get_blocks_and_directions(command, logo, get_index = True)
-
-        source_flags = [0] * len(command)
-        for block_order, block_id in blocks_in_command:
-            if block_id == source:
-                source_flags[block_order] = 1
-     
-        return source_flags
-    
 
     def epoch_end(self):
         return self.instance_index == len(self.commands)
@@ -231,7 +220,7 @@ class Dataset:
         index_shuf = list(range(20))
         random.shuffle(index_shuf)
     
-        blocks_in_command, _ = self.benchmark.get_blocks_and_directions(old_command, self.logos[command_index], get_index = True)
+        blocks_in_command, _, _ = self.benchmark.get_blocks_and_directions(old_command, self.logos[command_index], get_index = True)
 
         if self.logos[command_index]:
             block_names = self.benchmark.block_name_logos

@@ -107,17 +107,15 @@ class Network:
 
             ############################### DROPOUT INPUT ############################
             if target == "location":
-                self.one_hot_words = tf.scalar_mul(self.dropout_input_multiplier, tf.nn.dropout(self.embedded_words, 1.0 - self.dropout_input_tensor))
+                self.rnn_input = tf.scalar_mul(self.dropout_input_multiplier, tf.nn.dropout(self.embedded_words, 1.0 - self.dropout_input_tensor))
             else:
-                self.one_hot_words = tf.nn.dropout(self.embedded_words, 1.0 - self.dropout_input_tensor)
+                self.rnn_input = tf.nn.dropout(self.embedded_words, 1.0 - self.dropout_input_tensor)
             
 
             ############################## HIDDEN LAYERS #############################
 
             if network_type == "rnn":
                
-                self.rnn_input = self.one_hot_words
-
                 #if use_world:
                 #    world_multiple_times = tf.reshape(tf.tile(self.world, [1, max_command_len]), [-1, max_command_len, 20 * world_dimension])
                 #    self.rnn_input = tf.concat(axis=2, values=[self.rnn_input, world_multiple_times])
@@ -163,7 +161,7 @@ class Network:
                     self.logits = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, 20, 1, output_type)
                            
             elif network_type == "ffn":
-                self.ffn_input = tf.cast(tf.contrib.layers.flatten(self.one_hot_words), tf.float32)
+                self.ffn_input = tf.cast(tf.contrib.layers.flatten(self.rnn_input), tf.float32)
 
                 if use_world:
                     self.ffn_input = tf.concat(axis = 1, values = [self.world, self.ffn_input])

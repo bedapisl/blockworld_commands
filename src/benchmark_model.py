@@ -83,6 +83,9 @@ class BenchmarkModel:
                     if not logos and word in self.block_name_digits:        #pokud tam jsou cislice (napr. 4) tak budu ignorovat cislovky (napr. ctyri) jako bloky 
                         block_names = self.block_name_digits
                         numerical_direction_names = self.block_name_numerals
+                    
+                    if next_word in block_name and logos:
+                        continue
 
                     if get_index:
                         blocks_in_command.append((i, block_id))
@@ -105,6 +108,18 @@ class BenchmarkModel:
                         numerical_directions_in_command.append(numerical_direction_id)
 
         return (blocks_in_command, directions_in_command, numerical_directions_in_command)    
+
+
+    def get_source_flags(self, source, command, logo):
+        blocks_in_command, _, _ = self.get_blocks_and_directions(command, logo, get_index = True)
+
+        source_flags = [0] * len(command)
+        for block_order, block_id in blocks_in_command:
+            if block_id == source:
+                source_flags[block_order] = 1
+     
+        return source_flags
+    
 
     
     def predict(self, commands, worlds, correct_source, correct_location, tags, logos, source_flags, dataset):#, raw_commands):
