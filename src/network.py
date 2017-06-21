@@ -7,7 +7,7 @@ from utils import get_embedding_matrix, get_word_characters, vocabulary_length
 
 
 class Network:
-    def __init__(self, network_type, run_id, learning_rate, target, rnn_cell_type, rnn_cell_dim, bidirectional, hidden_dimension, 
+    def __init__(self, network_type, run_id, initial_learning_rate, target, rnn_cell_type, rnn_cell_dim, bidirectional, hidden_dimension, 
                             use_world, dropout_input, dropout_output, embeddings, version, threads, use_tags, rnn_output, hidden_layers, 
                             use_logos, use_source_flags, distinct_x_y, seed, world_dimension = 2):
         self.target = target
@@ -36,6 +36,7 @@ class Network:
             self.dropout_output_tensor = tf.placeholder(tf.float32, shape = ())
             self.dropout_input_multiplier = tf.placeholder(tf.float32, shape = ())
             self.dropout_output_multiplier = tf.placeholder(tf.float32, shape = ())
+            self.variable_learning_rate = tf.placeholder(tf.float32, shape = ())
 
             ################################## EMBEDDINGS ############################
             embedding_dim = 50
@@ -222,7 +223,50 @@ class Network:
                 print(target)
                 assert False
 
-            self.training = tf.train.AdamOptimizer(learning_rate).minimize(self.loss)
+
+            optimizer_type = "Adam_variable_decay"
+            global_step = tf.Variable(0, trainable=False)
+
+            if optimizer_type[0:3] == "SGD":
+                optimizer_constructor = tf.train.GradientDescentOptimizer
+            elif optimizer_type[0:4] == "Adam":
+                optimizer_constructor = tf.train.AdamOptimizer
+            else:
+                print(optimizer_type)
+                assert False
+
+            if optimizer_type == "SGD_exponential_decay" or optimizer_type == "Adam_exponential_decay":
+                learning_rate = tf.train.exponential_decay(initial_learning_rate, global_step, 100000, 0.96, staircase=True)
+                optimizer = optimizer_constructor(learning_rate)
+
+            elif optimizer_type == "SGD_variable_decay" or optimizer_type == "Adam_variable_decay":
+                optimizer = optimizer_constructor(self.variable_learning_rate)
+
+            elif optimizer_type == "SGD" or optimizer_type == "Adam":
+                optimizer = optimizer_constructor(initial_learning_rate)
+
+
+                self.training = tf.train.GradientDescentOptimizer(learning_rate).minimize(self.loss, global_step=global_step)
+
+            gradient_clipping = True
+            if not gradient_clipping:
+                self.training = optimizer.minimize(self.loss, global_step = global_step)
+            else:
+                gradient_min = -1.0
+                gradient_max = 1.0
+                gradients = optimizer.compute_gradients(self.loss)
+            
+                clipped_gradients = []
+                for gradient in gradients:
+                    if gradient[0] is None:
+                        clipped_gradients.append(gradient)
+                        continue
+                        
+                    clipped = tf.clip_by_value(gradient[0], gradient_min, gradient_max)
+                    clipped = (clipped, gradient[1])
+                    clipped_gradients.append(clipped)
+
+                self.training = optimizer.apply_gradients(clipped_gradients, global_step = global_step)
 
             if target == "source":
                 self.train_summary = tf.summary.scalar("train/accuracy", self.accuracy)
@@ -343,10 +387,10 @@ class Network:
         return reference, location_reference, location_direction
 
     
-    def train(self, commands, world, source_id, location, tags, logos, source_flags):
+    def train(self, commands, world, source_id, location, tags, logos, source_flags, learning_rate):
         feed_dict = {self.command : commands, self.command_lens : self.get_command_lens(commands), self.world : world, self.source : source_id, self.location : location,
                             self.dropout_input_tensor : self.dropout_input, self.dropout_output_tensor : self.dropout_output, self.dropout_input_multiplier : 1.0, self.dropout_output_multiplier : 1.0,
-                            self.tags : tags, self.logos : logos, self.source_flags : source_flags}
+                            self.tags : tags, self.logos : logos, self.source_flags : source_flags, self.variable_learning_rate : learning_rate}
 
         debug = False
         if debug == False:

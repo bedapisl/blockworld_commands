@@ -258,7 +258,7 @@ def load_best_result(run_id):
     db = Database()
     db_output = db.get_all_rows("SELECT * FROM Results WHERE RunID = " + str(run_id))
     if len(db_output) != 1:
-        raise ValueError("No data in database for run_id: " + str(run_id))
+        return (0.0, 1000000.0, 0.0, 0)
 
     row = list(db_output[0])
  
@@ -484,13 +484,6 @@ def main():
     if args["analyze"] != -1:
         analyze_model(args["analyze"])
         return 
-   
-    start_time = time.time()
-    
-    starting_epoch = 0
-    epochs_without_improvement = 0
-    best_results = (0.0, 1000000.0, 0.0, -1)
- 
     if args["continue_training"] == -1:
         if args["run_id"] == -1:
             run_id = get_run_id()
@@ -499,7 +492,7 @@ def main():
             run_id = args["run_id"]
 
         if args["model"] in ["rnn", "ffn"]:
-            model = Network(args["model"], hidden_dimension = args["hidden_dimension"], run_id = run_id, learning_rate = args["learning_rate"], target = args["target"],
+            model = Network(args["model"], hidden_dimension = args["hidden_dimension"], run_id = run_id, initial_learning_rate = args["learning_rate"], target = args["target"],
                             rnn_cell_dim = args["rnn_cell_dim"], rnn_cell_type = args["rnn_cell_type"], bidirectional = args["bidirectional"], threads = args["threads"], use_world = args["use_world"],
                             dropout_input = args["dropout_input"], dropout_output = args["dropout_output"], embeddings = args["embeddings"], version = args["version"], use_tags = args["use_tags"],
                             rnn_output = args["rnn_output"], hidden_layers = args["hidden_layers"], use_logos = args["use_logos"], use_source_flags = args["source_flags"], 
@@ -507,7 +500,7 @@ def main():
 
         elif args["model"] in ["benchmark"]:
             model = BenchmarkModel(args["version"], target = args["target"])
-    
+
     else:
         run_id = args["continue_training"]
         args["run_id"] = run_id
@@ -519,19 +512,32 @@ def main():
         args["max_epochs"] = user_args["max_epochs"]
         args["test"] = user_args["test"]
         model = load_model(args, run_id)
-        best_result = load_best_result(run_id)
-        starting_epoch = best_result[3]
+        #best_result = load_best_result(run_id)
+        #starting_epoch = best_result[3]
+
+    train(run_id, model, args)
+
+
+def train(run_id, model, args):
     
+    start_time = time.time()
+    
+    epochs_without_improvement = 0
+    best_results = load_best_result(run_id)
+    starting_epoch = best_results[-1]
+
     train_data = Dataset("train", args["version"], generated_commands=args["generated_commands"], switch_blocks = args["switch_blocks"])
     dev_data = Dataset("dev", args["version"])
     test_data = Dataset("test", args["version"])
-     
+
+    variable_learning_rate = args["learning_rate"]
+
     for epoch in range(starting_epoch, args["max_epochs"]):
         train_data.next_epoch()
         
         while not train_data.epoch_end():
             commands, worlds, sources, locations, tags, logos, source_flags = train_data.get_next_batch(args["batch_size"])
-            model.train(commands, worlds, sources, locations, tags, logos, source_flags)
+            model.train(commands, worlds, sources, locations, tags, logos, source_flags, variable_learning_rate)
 
         current_results = evaluate(model, dev_data, epoch)
         
@@ -549,6 +555,9 @@ def main():
             epochs_without_improvement += 1
             if epochs_without_improvement == args["stop"]:
                break
+
+            if epochs_without_improvement % 10 == 0:
+                variable_learning_rate = variable_learning_rate / 4.0
     
     print("Best result:")
     print_results(best_results)
