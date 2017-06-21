@@ -9,7 +9,7 @@ from utils import get_embedding_matrix, get_word_characters, vocabulary_length
 class Network:
     def __init__(self, network_type, run_id, initial_learning_rate, target, rnn_cell_type, rnn_cell_dim, bidirectional, hidden_dimension, 
                             use_world, dropout_input, dropout_output, embeddings, version, threads, use_tags, rnn_output, hidden_layers, 
-                            use_logos, use_source_flags, distinct_x_y, seed, world_dimension = 2):
+                            use_logos, use_source_flags, distinct_x_y, seed, optimizer_type, gradient_clipping, world_dimension = 2):
         self.target = target
         self.dropout_input = dropout_input
         self.dropout_output = dropout_output
@@ -216,15 +216,10 @@ class Network:
                     else:
                         self.loss = self.average_distance
              
-            #    if round_location:
-            #        self.predicted_location = tf.scalar_mul(1.0936, tf.round(tf.scalar_mul(1.0 / 1.0936, self.predicted_location)))
-
             else:
                 print(target)
                 assert False
 
-
-            optimizer_type = "Adam_variable_decay"
             global_step = tf.Variable(0, trainable=False)
 
             if optimizer_type[0:3] == "SGD":
@@ -248,7 +243,6 @@ class Network:
 
                 self.training = tf.train.GradientDescentOptimizer(learning_rate).minimize(self.loss, global_step=global_step)
 
-            gradient_clipping = True
             if not gradient_clipping:
                 self.training = optimizer.minimize(self.loss, global_step = global_step)
             else:
