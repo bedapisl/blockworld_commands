@@ -122,8 +122,8 @@ class Network:
                 #    self.rnn_input = tf.concat(axis=2, values=[self.rnn_input, world_multiple_times])
                 
                 if hidden_layers > 1:
-                    self.rnn_input = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, rnn_cell_dim, hidden_layers - 1, "all_outputs", self.dropout_output_tensor)
-                    self.rnn_input = tf.nn.dropout(self.rnn_input, 1.0 - self.dropout_output_tensor)
+                    self.rnn_input = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, rnn_cell_dim, hidden_layers - 1, "all_outputs", self.dropout_output_tensor, self.dropout_output_multiplier)
+                    self.rnn_input = tf.scalar_mul(self.dropout_output_multiplier, tf.nn.dropout(self.rnn_input, 1.0 - self.dropout_output_tensor))
                 
                 if rnn_output in ["last_state", "output_sum"]:
                     if rnn_output == "last_state":
@@ -219,6 +219,9 @@ class Network:
             else:
                 print(target)
                 assert False
+            
+
+            ############################## OPTIMIZER ####################################################
 
             global_step = tf.Variable(0, trainable=False)
 
@@ -240,8 +243,7 @@ class Network:
             elif optimizer_type == "SGD" or optimizer_type == "Adam":
                 optimizer = optimizer_constructor(initial_learning_rate)
 
-
-                self.training = tf.train.GradientDescentOptimizer(learning_rate).minimize(self.loss, global_step=global_step)
+            ############################## GRADIENT CLIPPING ###########################################
 
             if not gradient_clipping:
                 self.training = optimizer.minimize(self.loss, global_step = global_step)
@@ -278,7 +280,7 @@ class Network:
             self.session.run(init)
     
     
-    def rnn_layers(self, rnn_input, sequence_length, rnn_cell_type, rnn_cell_dim, layers, output, dropout_hidden = 0):
+    def rnn_layers(self, rnn_input, sequence_length, rnn_cell_type, rnn_cell_dim, layers, output, dropout_hidden = 0, dropout_multiplier = 1):
         assert layers > 0
 
         if rnn_cell_type == "LSTM":
@@ -295,7 +297,7 @@ class Network:
             self.rnn_layers_created += 1
             rnn_output, rnn_state = tf.nn.bidirectional_dynamic_rnn(rnn_cell, rnn_cell, rnn_input, sequence_length = sequence_length, dtype = tf.float32, scope = scope)
             rnn_input = tf.concat(axis=2, values=[rnn_output[0], rnn_output[1]])
-            rnn_input = tf.nn.dropout(rnn_input, 1.0 - dropout_hidden)
+            rnn_input = tf.scalar_mul(dropout_multiplier, tf.nn.dropout(rnn_input, 1.0 - dropout_hidden))
 
         if output == "last_state":
             if rnn_cell_type == "LSTM":
