@@ -107,20 +107,12 @@ class Network:
                 self.embedded_words = tf.concat(axis=2, values = [self.embedded_words, tf.to_float(self.source_flags_reshaped)])
 
             ############################### DROPOUT INPUT ############################
-            if target == "location":
-                self.rnn_input = tf.scalar_mul(self.dropout_input_multiplier, tf.nn.dropout(self.embedded_words, 1.0 - self.dropout_input_tensor))
-            else:
-                self.rnn_input = tf.nn.dropout(self.embedded_words, 1.0 - self.dropout_input_tensor)
-            
+            self.rnn_input = tf.scalar_mul(self.dropout_input_multiplier, tf.nn.dropout(self.embedded_words, 1.0 - self.dropout_input_tensor))
 
             ############################## HIDDEN LAYERS #############################
 
             if network_type == "rnn":
                
-                #if use_world:
-                #    world_multiple_times = tf.reshape(tf.tile(self.world, [1, max_command_len]), [-1, max_command_len, 20 * world_dimension])
-                #    self.rnn_input = tf.concat(axis=2, values=[self.rnn_input, world_multiple_times])
-                
                 if hidden_layers > 1:
                     self.rnn_input = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, rnn_cell_dim, hidden_layers - 1, "all_outputs", self.dropout_output_tensor, self.dropout_output_multiplier)
                     self.rnn_input = tf.scalar_mul(self.dropout_output_multiplier, tf.nn.dropout(self.rnn_input, 1.0 - self.dropout_output_tensor))
@@ -343,12 +335,19 @@ class Network:
         assert False
 
 
+    def get_dropout_multiplier(self, dropout):
+        if self.target == "source":
+            return 1.0
+        else:
+            return 1.0 - dropout
+
+
     def predict(self, commands, world, source_id, location, tags, logos, source_flags, dataset, generate_summary = True):
         predicted_location = None
         predicted_source = None
         feed_dict = {self.command : commands, self.command_lens : self.get_command_lens(commands), self.world : world, self.source : source_id, self.location : location,
-                            self.dropout_input_tensor : 0.0, self.dropout_output_tensor : 0.0, self.dropout_input_multiplier : 1.0 - self.dropout_input, 
-                            self.dropout_output_multiplier : 1.0 - self.dropout_output, self.tags : tags, self.logos : logos, self.source_flags : source_flags}
+                            self.dropout_input_tensor : 0.0, self.dropout_output_tensor : 0.0, self.dropout_input_multiplier : self.get_dropout_multiplier(self.dropout_input),
+                            self.dropout_output_multiplier : self.get_dropout_multiplier(self.dropout_output), self.tags : tags, self.logos : logos, self.source_flags : source_flags}
 
         if generate_summary:
             if self.target == "location":
@@ -371,8 +370,8 @@ class Network:
     
     def get_reference(self, commands, world, source_id, location, tags, logos, source_flags, dataset):
         feed_dict = {self.command : commands, self.command_lens : self.get_command_lens(commands), self.world : world, self.source : source_id, self.location : location,
-                            self.dropout_input_tensor : 0.0, self.dropout_output_tensor : 0.0, self.dropout_input_multiplier : 1.0 - self.dropout_input, 
-                            self.dropout_output_multiplier : 1.0 - self.dropout_output, self.tags : tags, self.logos : logos, self.source_flags : source_flags}
+                            self.dropout_input_tensor : 0.0, self.dropout_output_tensor : 0.0, self.dropout_input_multiplier : self.get_dropout_multiplier(self.dropout_input),
+                            self.dropout_output_multiplier : self.get_dropout_multiplier(self.dropout_output), self.tags : tags, self.logos : logos, self.source_flags : source_flags}
 
         if self.target == "location": 
             reference, location_reference, location_direction = self.session.run([self.reference, self.location_by_reference, self.location_by_direction], feed_dict)
