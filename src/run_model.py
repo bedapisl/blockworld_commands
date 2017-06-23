@@ -275,7 +275,7 @@ def load_model(args, run_id):
         model = BenchmarkModel(args["version"], target = args["target"])
         return model
     
-    model = Network(args["network_type"], hidden_dimension = args["hidden_dimension"], run_id = run_id, learning_rate = args["learning_rate"], target = args["target"],
+    model = Network(args["network_type"], hidden_dimension = args["hidden_dimension"], run_id = run_id, initial_learning_rate = args["learning_rate"], target = args["target"],
                         rnn_cell_dim = args["rnn_cell_dim"], rnn_cell_type = args["rnn_cell_type"], bidirectional = args["bidirectional"], use_world = args["use_world"], 
                         dropout_input = args["dropout_input"], dropout_output = args["dropout_output"], embeddings = args["embeddings"], version = args["version"], 
                         use_tags = args["use_tags"], rnn_output = args["rnn_output"], hidden_layers = args["hidden_layers"], use_logos = args["use_logos"], use_source_flags = args["source_flags"],
