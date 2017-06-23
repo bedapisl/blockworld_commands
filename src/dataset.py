@@ -45,7 +45,7 @@ class Dataset:
             for i in range(generated_commands):
                 sentence, world_before, source, location, logos = generator.new_sentence()
                 encoded_command, tags, tokens = single_command_encoder.prepare_single_command(version, sentence)
-                data.append((str(encoded_command), str(world_before), source, str(location), sentence, logos, -1, str(tags), str(tokens)))
+                data.append((str(encoded_command), str(world_before), source, source, str(location), sentence, logos, -1, str(tags), str(tokens)))
         
         if shuffle:
             random.shuffle(data)       
