@@ -460,7 +460,7 @@ def parse_arguments():
     args = parser.parse_args()
     args = vars(args)
 
-    bool_args = ["bidirectional", "test", "use_world", "use_tags", "use_logos", "distinct_x_y", "source_flags"]
+    bool_args = ["bidirectional", "test", "use_world", "use_tags", "use_logos", "distinct_x_y", "source_flags", "gradient_clipping"]
 
     for bool_arg in bool_args:
         if args[bool_arg] == "False":
