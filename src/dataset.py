@@ -143,13 +143,7 @@ class Dataset:
             switched_worlds = []
             for i in range(batch_start, batch_end):
                 if self.switch_blocks > random.uniform(0,1):
-                    #print(self.worlds[i])
-                    #print(self.raw_commands[i])
-                    #print(self.commands[i])
                     switched_world, switched_command = self.get_switched_blocks(i)
-                    #print(switched_world)
-                    #print(switched_command)
-                    #pdb.set_trace()
                     switched_commands.append(switched_command)
                     switched_worlds.append(switched_world)
                 else:
@@ -160,10 +154,6 @@ class Dataset:
             results[1] = np.array(switched_worlds)
 
         return tuple(results)
-
-        #return (np.array(self.commands[batch_start:batch_end]), np.array(self.worlds[batch_start:batch_end]), 
-        #            np.array(self.sources[batch_start:batch_end]), np.array(self.locations[batch_start:batch_end]), 
-        #            np.array(self.tags[batch_start:batch_end]), np.array(self.logos[batch_start:batch_end]))
 
 
     def get_all_data(self):
