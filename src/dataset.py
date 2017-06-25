@@ -212,6 +212,9 @@ class Dataset:
     
         blocks_in_command, _, _ = self.benchmark.get_blocks_and_directions(old_command, self.logos[command_index], get_index = True)
 
+        if len(blocks_in_command) < 2:
+            return old_world, old_command
+
         if self.logos[command_index]:
             block_names = self.benchmark.block_name_logos
         else:
