@@ -143,7 +143,6 @@ def print_results(results):
 
 
 def save(run_id, args, dev_results, test_results, start_time):
-    db = Database()
     epoch = dev_results[3]
     if args["target"] == "source":
         dev_result = dev_results[0]
@@ -164,7 +163,7 @@ def save(run_id, args, dev_results, test_results, start_time):
     db_cols = ["run_id", "target", "model", "version", "dev_result", "test_result", "correct_dev", "correct_test", "epoch", "hidden_dimension", "learning_rate", "rnn_cell_dim", "rnn_cell_type", "bidirectional", "dropout_input", "dropout_output", "batch_size", "use_world", "embeddings", "hidden_layers", "rnn_output", "use_tags", "use_logos", "distinct_x_y", "seed", "computation_time", "generated_commands", "switch_blocks", "source_flags", "optimizer_type", "gradient_clipping", "comment", "args"]
     
     args_to_process = copy.deepcopy(args)
-    args_to_delete = ["max_epochs", "test", "restore_and_test", "threads", "stop", "create_images", "continue_training"]
+    args_to_delete = ["max_epochs", "test", "restore_and_test", "threads", "stop", "create_images", "continue_training", "analyze"]
     if args_to_process["model"] == "ffn":
         args_to_delete += ["rnn_cell_type", "rnn_cell_dim", "bidirectional", "rnn_output"]
     
@@ -185,7 +184,25 @@ def save(run_id, args, dev_results, test_results, start_time):
         else:
             row.append(None)
 
-    db.insert("Results", row)
+    success = False
+    try:
+        db = Database()
+        db.insert("Results", row)
+        success = True
+    except pymysql.err.OperationalError:
+        try:
+            db.close()
+            db = Database()
+            db.insert("Results", row)
+            success = True
+        except pymysql.err.OperationalError:
+            pass
+
+    if not success:
+        print("Writing to output file, mysql server has gone away...")
+        output_file = open("error_file_" + str(run_id), "w")
+        output_file.write(str(args))
+        output_file.write(str(dev_results))
 
 
 def get_run_id():
