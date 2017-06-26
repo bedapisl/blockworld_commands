@@ -210,11 +210,11 @@ class BenchmarkModel:
         assert False
 
     
-    def get_reference(self, commands, world, source_id, location, tags, logos, source_flags, dataset):
+    def get_reference(self, commands, world, source_id, location, tags, logos, source_flags, dataset, learning_rate):
         return [[]] * len(commands), [None] * len(commands), [None] * len(commands)
 
 
-    def train(self, command, world, source_id, location, tags, logos, source_flags):
+    def train(self, command, world, source_id, location, tags, logos, source_flags, learning_rate):
         pass
             
 
