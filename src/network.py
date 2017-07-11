@@ -199,14 +199,13 @@ class Network:
                     
                     self.predicted_location = tf.add(self.location_by_reference, self.location_by_direction)
                 
-
-                    self.average_distance = tf.reduce_mean(tf.sqrt(tf.reduce_sum(tf.square(self.location - self.predicted_location), axis = 1)))
-                
-                    square_error = False
-                    if square_error:
-                        self.loss = tf.reduce_mean(tf.reduce_sum(tf.square(self.location - self.predicted_location), axis = 1))
-                    else:
-                        self.loss = self.average_distance
+                self.average_distance = tf.reduce_mean(tf.sqrt(tf.reduce_sum(tf.square(self.location - self.predicted_location), axis = 1)))
+            
+                square_error = False
+                if square_error:
+                    self.loss = tf.reduce_mean(tf.reduce_sum(tf.square(self.location - self.predicted_location), axis = 1))
+                else:
+                    self.loss = self.average_distance
              
             else:
                 print(target)
