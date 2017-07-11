@@ -21,7 +21,7 @@ numbers = [["zero", "0"]]
 
 for i, digit in enumerate(digits):
     block_name_digits.append([])
-    block_name_digits[i].append(digit)
+    #block_name_digits[i].append(digit)
     block_name_digits[i].append(str(i + 1))
     
     block_name_logos.append([])
@@ -33,7 +33,7 @@ for i in range(0, 6):
     digit = digits[i]
     numbers.append([])
     numbers[-1].append(digit)
-    numbers[-1].append(str(i + 1))
+    #numbers[-1].append(str(i + 1))
 
 
 word_sets["block_name_digits"] = block_name_digits
