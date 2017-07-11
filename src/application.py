@@ -182,8 +182,10 @@ class ApplicationGUI(QWidget):
 
 class ApplicationBackend:
     def __init__(self):
-        self.source_model_id = 5123
-        self.location_model_id = 5121
+        #self.source_model_id = 5123
+        #self.location_model_id = 5121
+        self.source_model_id = 2471
+        self.location_model_id = 5732
         self.max_command_id = 16766
         self.drawer = Drawer(output_dir = ".")
         self.source_preprocessing_version = self.get_preprocessing_version(self.source_model_id)
@@ -255,7 +257,7 @@ class ApplicationBackend:
                 self.tokenized_source = tokens
             else:
                 self.predicted_location = predicted_locations[0][0]
-                reference_weights, _, direction = models[i].get_reference(np.array([encoded_command]), np.array([self.world_before]), np.array([-1]), np.array([[0, 0]]), np.array([encoded_tags]), np.array([self.logo]), np.array([source_flags]), "single_prediction")
+                reference_weights, _, direction = models[i].get_reference(np.array([encoded_command]), np.array([self.world_before]), np.array([-1]), np.array([[0, 0]]), np.array([encoded_tags]), np.array([self.logo]), np.array([source_flags]), "single_prediction", 0.01)
                 self.reference_weights = reference_weights[0]
                 self.direction = direction[0]
                 self.tokenized_location = tokens
