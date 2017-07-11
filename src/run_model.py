@@ -6,6 +6,8 @@ import random
 import numpy as np
 from network import Network
 from benchmark_model import BenchmarkModel
+from baseline import RandomBaseline
+from baseline import DeterministicBaseline
 import argparse
 from database import Database
 import pdb
@@ -37,14 +39,19 @@ def evaluate(model, dataset, epoch, dimension = 2):
 
     if predicted_locations is not None:    
         location_errors = []
+        correct = 0
         location_difference = 0
         for i in range(0, len(commands)):
             location_difference += distance.euclidean(predicted_locations[i], locations[i])
             location_errors.append(distance.euclidean(predicted_locations[i], locations[i]))
-    
+            #if abs(predicted_locations[i][0] - locations[i][0]) <= 0.5 and abs(predicted_locations[i][1] - locations[i][1]) <= 0.5:
+            if is_correct(predicted_locations[i], locations[i]):
+                correct += 1
+
         location_distance = location_difference / float(len(commands))
 
-        correct_percentage = len([x for x in location_errors if x < 0.5]) / len(location_errors)
+        #correct_percentage = len([x for x in location_errors if x < 0.5]) / len(location_errors)
+        correct_percentage = correct / len(location_errors)
 #        print("Less than 0.5 distance: " + str(correct_percentage))
 
     return (source_accuracy, location_distance, correct_percentage, epoch)
@@ -54,6 +61,7 @@ def create_images(run_id):
     args = load_args(run_id)
     model = load_model(args, run_id)
     dataset = Dataset("dev", args["version"])
+    benchmark = BenchmarkModel(version = args["version"], target = "source")
 
     commands, worlds, sources, locations, tags, is_logos, source_flags = dataset.get_all_data()
     raw_commands, is_logos, command_ids, tokenized = dataset.get_raw_commands_and_logos()
@@ -66,7 +74,7 @@ def create_images(run_id):
         predicted_sources = sources
         target_info = "Predicting location"
         predicting_source = False
-        references, location_references, location_directions = model.get_reference(commands, worlds, sources, locations, tags, is_logos, source_flags, dataset.dataset_name)
+        references, location_references, location_directions = model.get_reference(commands, worlds, sources, locations, tags, is_logos, source_flags, dataset.dataset_name, args["learning_rate"])
 
     elif predicted_locations is None:
         predicted_locations = locations
@@ -100,7 +108,7 @@ def create_images(run_id):
                 elif len(references[i]) == 40:      #distinct x y -> 40 weights
                     reference_text = format(references[i][2*j], ".2f") + "," + format(references[i][2*j + 1], ".2f")
                 else:
-                    assert False
+                    reference_text = ""
 
                 if is_logos[i]:
                     reference_description += logos[j] + ": " + reference_text + ", "
@@ -115,7 +123,9 @@ def create_images(run_id):
             correct_location = locations[i]
         
         other_info = target_info + ", " + str(command_ids[i]) + ", " + result_description + ", " + result + "\n\n" + reference_description
-        filename = result + "_" + str(command_ids[i])
+        command_category = get_command_category(commands[i], is_logos[i], benchmark)
+        category_shortcut = get_category_shortcut(command_category)
+        filename = result + "_" + str(command_ids[i]) + "_" + str(category_shortcut)
 
         drawer.save_image(raw_commands[i] + "\n" + str(tokenized[i]), world_before, world_after, is_logos[i], other_info, filename, correct_location, predicted_sources[i])
 
@@ -291,6 +301,14 @@ def load_model(args, run_id):
     if args["network_type"] == "benchmark":
         model = BenchmarkModel(args["version"], target = args["target"])
         return model
+
+    elif args["network_type"] == "random_baseline":
+        model = RandomBaseline(target = args["target"])
+        return model
+     
+    elif args["network_type"] == "deterministic_baseline":
+        model = DeterministicBaseline(target = args["target"])
+        return model
     
     model = Network(args["network_type"], hidden_dimension = args["hidden_dimension"], run_id = run_id, initial_learning_rate = args["learning_rate"], target = args["target"],
                         rnn_cell_dim = args["rnn_cell_dim"], rnn_cell_type = args["rnn_cell_type"], bidirectional = args["bidirectional"], use_world = args["use_world"], 
@@ -348,6 +366,52 @@ def annotate_data(run_id = 5123):
             db.execute("UPDATE ModelInput SET PredictedSource = " + str(predicted_source[0]) + " WHERE CommandID = " + str(command_ids[i]) + " AND `Version` = " + str(args["version"]))
 
 
+def get_category_shortcut(command_category):
+    return ["SRD", "TD", "MD", "ND", "D", "MT", "MR", "NR", "Overall"][command_category]
+
+
+def get_category_names():
+    return ["Source, reference, direction", "Two directions", "More directions", "No direction", "Distance", "Block mentioned multiple times", "More references", "No reference", "Overall"]
+
+
+def get_command_category(command, logo, benchmark):
+    blocks, directions, distances = benchmark.get_blocks_and_directions(command, logo)
+
+    if len(set(blocks)) < 2:
+        return 7
+
+    elif len(set(blocks)) > 2:
+        return 6
+
+    elif len(blocks) > 2:
+        return 5
+
+    elif len(distances) > 0:
+        return 4
+
+    elif len(directions) == 0:
+        return 3
+
+    elif len(directions) > 2:
+        return 2
+
+    elif len(directions) == 2:
+        return 1
+
+    elif len(directions) == 1:
+        return 0
+    
+    else:
+        assert False
+
+
+def is_correct(predicted_location, gold_location):
+    block_distance = 1.0936
+    if abs(predicted_location[0] - gold_location[0]) <= 0.5 * block_distance and abs(predicted_location[1] - gold_location[1]) <= 0.5 * block_distance:
+        return True
+    return False
+
+
 def analyze_model(run_id, dataset = None, print_bad_commands = True):
     args = load_args(run_id)
     model = load_model(args, run_id)
@@ -357,48 +421,23 @@ def analyze_model(run_id, dataset = None, print_bad_commands = True):
     
     benchmark = BenchmarkModel(version = args["version"], target = "source")
 
-    categories = ["Source, reference, direction", "Two directions", "More directions", "No direction", "Distance", "Block mentioned multiple times", "More references", "No reference", "Overall"]
+    categories = get_category_names()
 
     commands, worlds, sources, locations, tags, logos, source_flags = dataset.get_all_data()
     raw_commands, _, command_ids, _ = dataset.get_raw_commands_and_logos()
     predicted_sources, predicted_locations = model.predict(commands, worlds, sources, locations, tags, logos, source_flags, dataset.dataset_name)
 
+    correct = []
     predictions = []
     command_by_category = []
     for i in range(len(categories)):
         predictions.append([])
         command_by_category.append([])
+        correct.append(0)
     
     for i in range(0, len(commands)):
-        blocks, directions, distances = benchmark.get_blocks_and_directions(commands[i], logos[i])
+        category_index = get_command_category(commands[i], logos[i], benchmark)
 
-        if len(set(blocks)) < 2:
-            category_index = 7
-
-        elif len(set(blocks)) > 2:
-            category_index = 6
-
-        elif len(blocks) > 2:
-            category_index = 5
-
-        elif len(distances) > 0:
-            category_index = 4
-
-        elif len(directions) == 0:
-            category_index = 3
-
-        elif len(directions) > 2:
-            category_index = 2
-
-        elif len(directions) == 2:
-            category_index = 1
-
-        elif len(directions) == 1:
-            category_index = 0
-        
-        else:
-            assert False
-        
         if predicted_sources is not None:
             if sources[i] == predicted_sources[i]:
                 prediction = 1
@@ -407,6 +446,9 @@ def analyze_model(run_id, dataset = None, print_bad_commands = True):
                     
         if predicted_locations is not None:    
             prediction = distance.euclidean(predicted_locations[i], locations[i])
+            if is_correct(predicted_locations[i], locations[i]):
+                correct[category_index] += 1
+                correct[-1] += 1
 
         predictions[category_index].append(prediction)
         predictions[-1].append(prediction)      #overall results
@@ -418,7 +460,8 @@ def analyze_model(run_id, dataset = None, print_bad_commands = True):
         mean = sum(predictions[i]) / len(predictions[i])
         
         if predicted_locations is not None:
-            correct_percentage = len([x for x in predictions[i] if x < 0.5]) / len(predictions[i])  #for location
+            #correct_percentage = len([x for x in predictions[i] if x < 0.5]) / len(predictions[i])  #for location
+            correct_percentage = correct[i] / len(predictions[i])
             bad_predictions = sorted(zip(predictions[i], command_by_category[i]), key = lambda x: x[0])[-5:] 
         
         else:
@@ -438,7 +481,7 @@ def analyze_model(run_id, dataset = None, print_bad_commands = True):
 def parse_arguments():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--model", default="ffn", type=str, choices=["ffn", "rnn", "benchmark"], help="Model to use")
+    parser.add_argument("--model", default="ffn", type=str, choices=["ffn", "rnn", "benchmark", "random_baseline", "deterministic_baseline"], help="Model to use")
     parser.add_argument("--max_epochs", default=1000, type=int, help="Maximum number of epochs")
     parser.add_argument("--batch_size", default=8, type=int, help="Batch size")
     parser.add_argument("--stop", default=5, type=int, help="Number of epochs without improvement before stopping training")
@@ -503,8 +546,9 @@ def main():
         return
 
     if args["analyze"] != -1:
-        analyze_model(args["analyze"])
+        analyze_model(args["analyze"], Dataset("test", 20))
         return 
+
     if args["continue_training"] == -1:
         if args["run_id"] == -1:
             run_id = get_run_id()
@@ -521,6 +565,13 @@ def main():
 
         elif args["model"] in ["benchmark"]:
             model = BenchmarkModel(args["version"], target = args["target"])
+
+        elif args["model"] in ["random_baseline"]:
+            model = RandomBaseline(target = args["target"])
+
+        elif args["model"] in ["deterministic_baseline"]:
+            model = DeterministicBaseline(target = args["target"])
+
 
     else:
         run_id = args["continue_training"]
@@ -567,7 +618,7 @@ def train(run_id, model, args):
         if improvement(best_results, current_results):
             best_results = current_results
             epochs_without_improvement = 0
-            if args["model"] != "benchmark":
+            if args["model"] in ["rnn", "fnn"]:
                 run_dir = "checkpoints/" + str(run_id)
                 if not os.path.isdir(run_dir):
                     os.makedirs(run_dir)
@@ -584,7 +635,7 @@ def train(run_id, model, args):
     print_results(best_results)
 
     if args["test"]:
-        if args["model"] != "benchmark":
+        if args["model"] in ["rnn", "fnn"]:
             best_net = tf.train.get_checkpoint_state("checkpoints/" + str(run_id))
             model.saver.restore(model.session, best_net.model_checkpoint_path)
         

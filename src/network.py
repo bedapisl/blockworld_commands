@@ -368,7 +368,7 @@ class Network:
         return predicted_source, predicted_location
 
     
-    def get_reference(self, commands, world, source_id, location, tags, logos, source_flags, dataset):
+    def get_reference(self, commands, world, source_id, location, tags, logos, source_flags, dataset, learning_rate):
         feed_dict = {self.command : commands, self.command_lens : self.get_command_lens(commands), self.world : world, self.source : source_id, self.location : location,
                             self.dropout_input_tensor : 0.0, self.dropout_output_tensor : 0.0, self.dropout_input_multiplier : self.get_dropout_multiplier(self.dropout_input),
                             self.dropout_output_multiplier : self.get_dropout_multiplier(self.dropout_output), self.tags : tags, self.logos : logos, self.source_flags : source_flags}
