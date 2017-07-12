@@ -59,6 +59,7 @@ First script, *application.py*, launches the visualization of the world with pos
 The script *run_model.py* is used for training, analyzing and testing models.
 It works with the database, which is by default saved in file *blockworld_commands/data/basic_database.db*.
 By default this script trains our best location prediction models, which can take multiple days do finish.
+
 To print all the options and their meaning use:
 	
 	`python3 run_model.py --help`
