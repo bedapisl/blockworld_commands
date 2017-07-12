@@ -67,14 +67,12 @@ def main():
                         users += json_data["notes"][i]["users"]
 
                 
-                #db.insert("Configuration", [configuration_id, dataset, json_data["decoration"]])
-                #load_configuration_commands(json_data, configuration_id, db)
-                #load_configuration_world(json_data, configuration_id, db)
-                #configuration_id += 1
+                db.insert("Configuration", [configuration_id, dataset, json_data["decoration"]])
+                load_configuration_commands(json_data, configuration_id, db)
+                load_configuration_world(json_data, configuration_id, db)
+                configuration_id += 1
      
-        pdb.set_trace()
-
-    #db.commit()            
+    db.commit()            
     
 
 main()
