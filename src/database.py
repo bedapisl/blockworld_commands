@@ -18,7 +18,7 @@ port = 3306
 
 
 #SQLite config
-default_database_file = "../data/database.db"
+default_database_file = "../data/basic_database.db"
 
 
 class Database:
