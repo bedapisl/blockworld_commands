@@ -49,6 +49,7 @@ class Drawer:
 
 
     def draw_single_block(self, canvas, x, y, offset, highlight, logos, block_number):
+        print(block_number)
         if logos:
             if highlight:
                 image = self.highlight_logos[block_number]
@@ -79,7 +80,7 @@ class Drawer:
 
         if predicted_source != -1 and predicted_location is not None:
             (x, y) = predicted_location
-            canvas = self.draw_single_block(canvas, x, y, offset, True, logos, predicted_source)
+            canvas = self.draw_single_block(canvas, x, y, offset, True, logos, predicted_source[0])
 
         return canvas
 
