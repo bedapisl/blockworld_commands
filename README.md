@@ -13,29 +13,40 @@ For installation you will need following:
 * Linux OS
 * Python 3
 * Git
-	`sudo apt-get install git`
+	
+`sudo apt-get install git`
 * Pip 3	
-	`sudo apt-get install python3-pip`
+
+`sudo apt-get install python3-pip`
 * Hunspell
-	`sudo apt-get install libhunspell-dev`
+
+`sudo apt-get install libhunspell-dev`
 
 ### Installation
 Get copy of the repository:
-	`git clone https://github.com/spekoun/blockworld_commands.git`
+
+`git clone https://github.com/spekoun/blockworld_commands.git`
 
 Optional: Download pretrained embeddings (822 MB). Standard models do not need them.
-	`wget http://nlp.stanford.edu/data/glove.6B.zip
-	unzip glove.6B.zip
-	rm glove.6B.100d.txt glove.6B.200d.txt glove.6B.300d.txt
-	mv glove.6B.50d.txt blockworld_commands/data`
+	
+```
+wget http://nlp.stanford.edu/data/glove.6B.zip
+unzip glove.6B.zip
+rm glove.6B.100d.txt glove.6B.200d.txt glove.6B.300d.txt
+mv glove.6B.50d.txt blockworld_commands/data
+```
 
 Go in the repository and install needed Python packages:
-	`cd blockworld_commands
-	pip3 install -r requirements.txt`
+```
+cd blockworld_commands
+pip3 install -r requirements.txt
+```
 
 Test the application:
-	`cd src
-	python3 application.py`
+```
+cd src
+python3 application.py
+```
 
 ## Usage
 
@@ -49,6 +60,7 @@ The script *run_model.py* is used for training, analyzing and testing models.
 It works with the database, which is by default saved in file *blockworld_commands/data/basic_database.db*.
 By default this script trains our best location prediction models, which can take multiple days do finish.
 To print all the options and their meaning use:
+	
 	`python3 run_model.py --help`
 
 ### Data preprocessing
