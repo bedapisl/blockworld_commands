@@ -1,7 +1,7 @@
 
 import pdb
 
-default_database_type = "mysql"
+default_database_type = "sqlite3"
 
 #if database_type == "mysql":
 #    import pymysql.cursors
@@ -11,7 +11,7 @@ default_database_type = "mysql"
 
 #MYSQL config
 user = 'beda'
-password = 'hardcore'
+password = ''
 database = 'core'
 host = '127.0.0.1'
 port = 3306
