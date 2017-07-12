@@ -505,7 +505,7 @@ def parse_arguments():
     parser.add_argument("--rnn_output", default="direct_last_state", choices = ["last_state", "all_outputs", "direct_last_state"], type=str, help="How and what output of rnn will be used")
     parser.add_argument("--hidden_layers", default=2, type=int, help="Number of hidden layers in the middle part of network")
     parser.add_argument("--use_logos", default="False", type=str, choices=["False", "True"], help="Whether use logos as part of input to model")
-    parser.add_argument("--seed", default=42, type=int, help="Random seed")
+    parser.add_argument("--seed", default=44, type=int, help="Random seed")
     parser.add_argument("--generated_commands", default=0, type=int, help="How many commands for training are automatically generated")
     parser.add_argument("--comment", default="", type=str, help="Description of this run")
     parser.add_argument("--run_id", default=-1, type=int, help="ID of this run for saving results in database")
