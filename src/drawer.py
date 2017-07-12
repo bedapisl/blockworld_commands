@@ -77,7 +77,7 @@ class Drawer:
             else:
                 canvas = self.draw_single_block(canvas, x, y, offset, False, logos, i)
 
-        if predicted_source != -1 and predicted_location != None:
+        if predicted_source != -1 and predicted_location is not None:
             (x, y) = predicted_location
             canvas = self.draw_single_block(canvas, x, y, offset, True, logos, predicted_source)
 
