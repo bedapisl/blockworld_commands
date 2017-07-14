@@ -53,7 +53,14 @@ python3 application.py
 There are 4 scripts intended to be used by the user: *application.py*, *run_model.py*, *load_data.py* and *prepare_data.py*.
 
 ### Visual application
-The first script, *application.py*, launches the visualization of the world with a possibility to try the models on the existing and also new commands.
+The first script, *application.py*, launches the visualization of the problem.
+The application lets you load existing commands and world states.
+Commands are identified with IDs, where train set commands have ID 0-11870, test set 11871-15047 and development set 15048-16766.
+
+After pressing the *Process* button the best source and location model makes a prediction based on the current world state and sentence.
+The predicted source block is then visualized in blue colour in the predicted location.
+
+For better understanding the behaviour of the models, there is a textbox on the left showing predicted weights and a direction and a bottom textbox showing the preprocessed command.
 
 ### Working with models
 The script *run_model.py* is used for training, analyzing and testing models.
