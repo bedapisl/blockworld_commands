@@ -25,7 +25,7 @@ To install the prerequisities (except Linux OS) on Ubuntu, use the command:
 ### Installation
 Get copy of the repository:
 
-`git clone https://github.com/spekoun/blockworld_commands.git`
+`git clone https://github.com/bedapisl/blockworld_commands.git`
 
 Optional: Download the pretrained embeddings (822 MB). The pretrained models do not need them.
 	
