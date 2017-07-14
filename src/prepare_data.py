@@ -456,15 +456,12 @@ def create_training_data(version, tokenizer, lemmatizer, spell_checker):
         if encoded_tags is not None:
             encoded_tags = str(encoded_tags)
 
-        data.append([command_id, dataset, version, str(encoded_command), encoded_tags, str(world_before), source, str(location), reference, str(direction), command, str(tokens)])
+        data.append([command_id, dataset, version, str(encoded_command), encoded_tags, str(world_before), source, None, str(location), reference, str(direction), command, str(tokens)])
 
     db.insert_many("ModelInput", data)
 
 
 def prepare_data(version):
-    #tokenizer = Tokenizer(engine = tokenization_engine, ignore_words = ignore_words, use_hunspell = use_hunspell or hunspell_first)
-    #lemmatizer = LemmatizerTagger()
-    #spell_checker = SpellChecker(vocabulary_version = version, tokenizer = tokenizer, lemmatizer = lemmatizer, occurences_to_repair = 30, use_hunspell = use_hunspell, use_synonyms = use_synonyms, use_lemma = use_lemma, max_levenshtein_distance = max_levenshtein, min_count = min_count, hunspell_first = hunspell_first)
     tokenizer, lemmatizer, spell_checker = get_tokenizer_lemmatizer_spellchecker(version)
     spell_checker.create_vocabulary()
     create_training_data(version = version, tokenizer = tokenizer, lemmatizer = lemmatizer, spell_checker = spell_checker)
@@ -533,41 +530,8 @@ def get_version_settings():
 
 
 def main():
-    #prepare_data(0, False, False, [])
-    #prepare_data(1, True, False, [])
-    #prepare_data(1, "rule_based", [], use_hunspell = True, use_lemma = False, use_synonyms = False, min_count = 2)
-    #prepare_data(2, True, True, [])
-    #prepare_data(3, True, True, version_3_ignore_words())
-    #prepare_data(4, "rule_based", [], use_hunspell = True, use_lemma = True, use_synonyms = False, min_count = 2)
-    #prepare_data(5, "rule_based", [], use_hunspell = True, use_lemma = True, use_synonyms = True, min_count = 5)
-    #prepare_data(6, "rule_based", [], use_hunspell = False, use_lemma = False, use_synonyms = False, min_count = 2)
-#    
-#    prepare_data(10, "rule_based", [], use_hunspell = False, use_lemma = False, use_synonyms = False, min_count = 2, max_levenshtein = 0, hunspell_first = False)
-#    prepare_data(11, "udpipe", [], use_hunspell = False, use_lemma = False, use_synonyms = False, min_count = 2, max_levenshtein = 0, hunspell_first = False)
-#    prepare_data(12, "rule_based", [], use_hunspell = True, use_lemma = False, use_synonyms = False, min_count = 2, max_levenshtein = 0, hunspell_first = False)
-#    prepare_data(13, "udpipe", [], use_hunspell = True, use_lemma = False, use_synonyms = False, min_count = 2, max_levenshtein = 0, hunspell_first = False)
-#    prepare_data(14, "rule_based", [], use_hunspell = True, use_lemma = True, use_synonyms = False, min_count = 2, max_levenshtein = 0, hunspell_first = False)
-#    prepare_data(15, "udpipe", [], use_hunspell = True, use_lemma = True, use_synonyms = False, min_count = 2, max_levenshtein = 0, hunspell_first = False)
-#    prepare_data(16, "rule_based", [], use_hunspell = False, use_lemma = False, use_synonyms = False, min_count = 2, max_levenshtein = 0, hunspell_first = True)
-#    prepare_data(17, "rule_based", [], use_hunspell = True, use_lemma = False, use_synonyms = True, min_count = 2, max_levenshtein = 0, hunspell_first = False)
-#    prepare_data(18, "rule_based", version_3_ignore_words(), use_hunspell = True, use_lemma = False, use_synonyms = False, min_count = 2, max_levenshtein = 0, hunspell_first = False)
-#    prepare_data(19, "rule_based", [], use_hunspell = True, use_lemma = False, use_synonyms = False, min_count = 2, max_levenshtein = 1, hunspell_first = False)
-#    prepare_data(20, "rule_based", [], use_hunspell = True, use_lemma = False, use_synonyms = False, min_count = 4, max_levenshtein = 0, hunspell_first = False)
-#    prepare_data(21, "rule_based", version_3_ignore_words(), use_hunspell = True, use_lemma = True, use_synonyms = False, min_count = 4, max_levenshtein = 0, hunspell_first = False)
-#    prepare_data(22, "rule_based", version_3_ignore_words(), use_hunspell = True, use_lemma = True, use_synonyms = True, min_count = 4, max_levenshtein = 0, hunspell_first = False)
-#    prepare_data(23, "udpipe", [], use_hunspell = False, use_lemma = False, use_synonyms = False, min_count = 2, max_levenshtein = 0, hunspell_first = True)
-#    prepare_data(24, "udpipe", [], use_hunspell = True, use_lemma = False, use_synonyms = True, min_count = 2, max_levenshtein = 0, hunspell_first = False)
-#    prepare_data(25, "udpipe", version_3_ignore_words(), use_hunspell = True, use_lemma = False, use_synonyms = False, min_count = 2, max_levenshtein = 0, hunspell_first = False)
-#    prepare_data(26, "udpipe", [], use_hunspell = True, use_lemma = False, use_synonyms = False, min_count = 2, max_levenshtein = 1, hunspell_first = False)
-#    prepare_data(27, "udpipe", [], use_hunspell = True, use_lemma = False, use_synonyms = False, min_count = 4, max_levenshtein = 0, hunspell_first = False)
-#    prepare_data(28, "udpipe", version_3_ignore_words(), use_hunspell = True, use_lemma = True, use_synonyms = False, min_count = 4, max_levenshtein = 0, hunspell_first = False)
-#    prepare_data(29, "udpipe", version_3_ignore_words(), use_hunspell = True, use_lemma = True, use_synonyms = True, min_count = 4, max_levenshtein = 0, hunspell_first = False)
-#
-
-    prepare_data(version = 33)
-    prepare_data(version = 34)
-    prepare_data(version = 35)
-
+    for i in range(10, 36):
+        prepare_data(version = i)
 
 
 if __name__ == "__main__":
