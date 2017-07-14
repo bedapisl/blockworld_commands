@@ -18,6 +18,7 @@ You will need following:
 * Hunspell
 
 To install the prerequisities (except Linux OS) on Ubuntu, use the command:
+
 `sudo apt-get install python3 git python3-pip libhunspell-dev`
 
 
