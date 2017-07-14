@@ -1,14 +1,15 @@
 # Blockworld Commands
 
 Code behind neural and other models for interpreting natural language commands using [Language Grounding dataset](https://nlg.isi.edu/language-grounding/).
+Contains pretrained models which for source prediction achieves 98.8% accuracy and for location prediction achieves 68.9% accuracy (or 0.71 average distance between correct and predicted target location when using the distance metric).
 
 ## Getting started 
 
-This installation guide was tested on clean installation of 64-bit Ubuntu 16.04.
+This guide was tested on clean installation of 64-bit Ubuntu 16.04.
 
 ### Prerequisities
 
-For installation you will need following:
+You will need following:
 
 * Linux OS
 * Python 3
