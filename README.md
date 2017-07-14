@@ -62,7 +62,7 @@ By default this script trains our best location prediction model, which can take
 
 To print all the options and their meaning use:
 	
-	`python3 run_model.py --help`
+`python3 run_model.py --help`
 
 ### Data preprocessing
 There are only data preprocessed by a single version of the preprocessing process in the default database.
