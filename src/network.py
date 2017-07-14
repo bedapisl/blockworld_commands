@@ -16,6 +16,11 @@ class Network:
         self.use_tags = use_tags
         self.rnn_layers_created = 0
 
+        if run_id == 5123:
+            self.old_graph = True
+        else:
+            self.old_graph = False
+
         graph = tf.Graph()
         graph.seed = seed
         self.session = tf.Session(graph = graph, config = tf.ConfigProto(inter_op_parallelism_threads = threads, intra_op_parallelism_threads = threads))
@@ -107,7 +112,10 @@ class Network:
                 self.embedded_words = tf.concat(axis=2, values = [self.embedded_words, tf.to_float(self.source_flags_reshaped)])
 
             ############################### DROPOUT INPUT ############################
-            self.rnn_input = tf.scalar_mul(self.dropout_input_multiplier, tf.nn.dropout(self.embedded_words, 1.0 - self.dropout_input_tensor))
+            if not self.old_graph:
+                self.rnn_input = tf.scalar_mul(self.dropout_input_multiplier, tf.nn.dropout(self.embedded_words, 1.0 - self.dropout_input_tensor))
+            elif self.old_graph:
+                self.rnn_input = tf.nn.dropout(self.embedded_words, 1.0 - self.dropout_input_tensor)
 
             ############################## HIDDEN LAYERS #############################
 
@@ -115,7 +123,10 @@ class Network:
                
                 if hidden_layers > 1:
                     self.rnn_input = self.rnn_layers(self.rnn_input, self.command_lens, rnn_cell_type, rnn_cell_dim, hidden_layers - 1, "all_outputs", self.dropout_output_tensor, self.dropout_output_multiplier)
-                    self.rnn_input = tf.scalar_mul(self.dropout_output_multiplier, tf.nn.dropout(self.rnn_input, 1.0 - self.dropout_output_tensor))
+                    if not self.old_graph:
+                        self.rnn_input = tf.scalar_mul(self.dropout_output_multiplier, tf.nn.dropout(self.rnn_input, 1.0 - self.dropout_output_tensor))
+                    else:
+                        self.rnn_input = tf.nn.dropout(self.rnn_input, 1.0 - self.dropout_output_tensor)
                 
                 if rnn_output in ["last_state", "output_sum"]:
                     if rnn_output == "last_state":
@@ -214,46 +225,50 @@ class Network:
 
             ############################## OPTIMIZER ####################################################
 
-            global_step = tf.Variable(0, trainable=False)
-
-            if optimizer_type[0:3] == "SGD":
-                optimizer_constructor = tf.train.GradientDescentOptimizer
-            elif optimizer_type[0:4] == "Adam":
-                optimizer_constructor = tf.train.AdamOptimizer
+            if self.old_graph:
+                self.training = tf.train.AdamOptimizer(initial_learning_rate).minimize(self.loss)
+            
             else:
-                print(optimizer_type)
-                assert False
+                global_step = tf.Variable(0, trainable=False)
 
-            if optimizer_type == "SGD_exponential_decay" or optimizer_type == "Adam_exponential_decay":
-                learning_rate = tf.train.exponential_decay(initial_learning_rate, global_step, 100000, 0.96, staircase=True)
-                optimizer = optimizer_constructor(learning_rate)
+                if optimizer_type[0:3] == "SGD":
+                    optimizer_constructor = tf.train.GradientDescentOptimizer
+                elif optimizer_type[0:4] == "Adam":
+                    optimizer_constructor = tf.train.AdamOptimizer
+                else:
+                    print(optimizer_type)
+                    assert False
 
-            elif optimizer_type == "SGD_variable_decay" or optimizer_type == "Adam_variable_decay":
-                optimizer = optimizer_constructor(self.variable_learning_rate)
+                if optimizer_type == "SGD_exponential_decay" or optimizer_type == "Adam_exponential_decay":
+                    learning_rate = tf.train.exponential_decay(initial_learning_rate, global_step, 100000, 0.96, staircase=True)
+                    optimizer = optimizer_constructor(learning_rate)
 
-            elif optimizer_type == "SGD" or optimizer_type == "Adam":
-                optimizer = optimizer_constructor(initial_learning_rate)
+                elif optimizer_type == "SGD_variable_decay" or optimizer_type == "Adam_variable_decay":
+                    optimizer = optimizer_constructor(self.variable_learning_rate)
+
+                elif optimizer_type == "SGD" or optimizer_type == "Adam":
+                    optimizer = optimizer_constructor(initial_learning_rate)
 
             ############################## GRADIENT CLIPPING ###########################################
 
-            if not gradient_clipping:
-                self.training = optimizer.minimize(self.loss, global_step = global_step)
-            else:
-                gradient_min = -1.0
-                gradient_max = 1.0
-                gradients = optimizer.compute_gradients(self.loss)
-            
-                clipped_gradients = []
-                for gradient in gradients:
-                    if gradient[0] is None:
-                        clipped_gradients.append(gradient)
-                        continue
-                        
-                    clipped = tf.clip_by_value(gradient[0], gradient_min, gradient_max)
-                    clipped = (clipped, gradient[1])
-                    clipped_gradients.append(clipped)
+                if not gradient_clipping:
+                    self.training = optimizer.minimize(self.loss, global_step = global_step)
+                else:
+                    gradient_min = -1.0
+                    gradient_max = 1.0
+                    gradients = optimizer.compute_gradients(self.loss)
+                
+                    clipped_gradients = []
+                    for gradient in gradients:
+                        if gradient[0] is None:
+                            clipped_gradients.append(gradient)
+                            continue
+                            
+                        clipped = tf.clip_by_value(gradient[0], gradient_min, gradient_max)
+                        clipped = (clipped, gradient[1])
+                        clipped_gradients.append(clipped)
 
-                self.training = optimizer.apply_gradients(clipped_gradients, global_step = global_step)
+                    self.training = optimizer.apply_gradients(clipped_gradients, global_step = global_step)
 
             if target == "source":
                 self.train_summary = tf.summary.scalar("train/accuracy", self.accuracy)
@@ -288,7 +303,10 @@ class Network:
             self.rnn_layers_created += 1
             rnn_output, rnn_state = tf.nn.bidirectional_dynamic_rnn(rnn_cell, rnn_cell, rnn_input, sequence_length = sequence_length, dtype = tf.float32, scope = scope)
             rnn_input = tf.concat(axis=2, values=[rnn_output[0], rnn_output[1]])
-            rnn_input = tf.scalar_mul(dropout_multiplier, tf.nn.dropout(rnn_input, 1.0 - dropout_hidden))
+            if not self.old_graph:
+                rnn_input = tf.scalar_mul(dropout_multiplier, tf.nn.dropout(rnn_input, 1.0 - dropout_hidden))
+            else:
+                rnn_input = tf.nn.dropout(rnn_input, 1.0 - dropout_hidden)
 
         if output == "last_state":
             if rnn_cell_type == "LSTM":

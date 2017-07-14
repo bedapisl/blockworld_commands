@@ -49,7 +49,6 @@ class Drawer:
 
 
     def draw_single_block(self, canvas, x, y, offset, highlight, logos, block_number):
-        print(block_number)
         if logos:
             if highlight:
                 image = self.highlight_logos[block_number]
