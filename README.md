@@ -13,14 +13,12 @@ For installation you will need following:
 * Linux OS
 * Python 3
 * Git
-	
-`sudo apt-get install git`
 * Pip 3	
-
-`sudo apt-get install python3-pip`
 * Hunspell
 
-`sudo apt-get install libhunspell-dev`
+To install the prerequisities (except Linux OS) on Ubuntu, use command:
+`sudo apt-get install python3 git python3-pip libhunspell-dev`
+
 
 ### Installation
 Get copy of the repository:
