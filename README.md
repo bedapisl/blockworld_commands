@@ -3,7 +3,7 @@
 Code behind neural and other models for interpreting natural language commands using [Language Grounding dataset](https://nlg.isi.edu/language-grounding/).
 Contains pretrained models which for the source prediction achieves 98.8% accuracy and for the location prediction achieves 68.9% accuracy (or 0.71 average distance between the correct and the predicted target location when using the distance metric).
 
-Paper **Communication with Robots using Multilayer Recurrent Networks**, which was accepted as workshop paper on Language Grounding for Robotics at ACL 2017, used this source code for the experiments.
+Paper [**Communication with Robots using Multilayer Recurrent Networks**](http://www.aclweb.org/anthology/W17-2806), which was presented at workshop Language Grounding for Robotics at ACL 2017, used this source code for the experiments.
 
 ## Getting started 
 
@@ -53,6 +53,18 @@ python3 application.py
 
 There are 4 scripts intended to be used by the user: *application.py*, *run_model.py*, *load_data.py* and *prepare_data.py*.
 
+### Replicating results
+This repository contains two pretrained models - one for source prediction and one for target prediction.
+To load and evaluate the source model on test data use command:
+```
+python3 run_model.py --restore_and_test 5123
+```
+
+To load and evaluate the target model use:
+```
+python3 run_model.py --restore_and_test 5732
+```
+
 ### Visual application
 The first script, *application.py*, launches the visualization of the problem.
 The application lets you load existing commands and world states.
@@ -79,8 +91,9 @@ If you need the rest, use the following scripts:
 *prepare_data.py* takes the loaded data, transforms them to be usable by the models (e.g. tokenization, spellchecking) and saves the results to the database.
 This script needs a lot of time (approximately 1 hour).
 
+### Troubleshooting
+If you are unable to load models, make sure the correct version of Tensorflow  (1.0.1) is installed.
+
 ## Author
 
 Bedrich Pisl - bedapisl@gmail.com
-
-
