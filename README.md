@@ -3,6 +3,8 @@
 Code behind neural and other models for interpreting natural language commands using [Language Grounding dataset](https://nlg.isi.edu/language-grounding/).
 Contains pretrained models which for the source prediction achieves 98.8% accuracy and for the location prediction achieves 68.9% accuracy (or 0.71 average distance between the correct and the predicted target location when using the distance metric).
 
+Paper **Communication with Robots using Multilayer Recurrent Networks**, which was accepted as workshop paper on Language Grounding for Robotics at ACL 2017, used this source code for the experiments.
+
 ## Getting started 
 
 This guide was tested on a clean installation of 64-bit Ubuntu 16.04.
@@ -20,7 +22,6 @@ You will need following:
 To install the prerequisities (except Linux OS) on Ubuntu, use the command:
 
 `sudo apt-get install python3 git python3-pip libhunspell-dev`
-
 
 ### Installation
 Get copy of the repository:
